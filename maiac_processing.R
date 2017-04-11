@@ -6,7 +6,7 @@
 ## Notes: 
 ##################################################
 ## Current processing workflow:
-## TODO: improve this workflow listing...
+## TODO: improve this workflow listing... it's not updated
 ## 1) get all filenames from a given 8-day period for all available tiles to south america
 ## 2) filter product names by only the product tiles/dates that have RTLS tiles
 ## 3) convert MAIACTBRF and MAIACRTLS hdfs to geotif (gdal_translate)
@@ -43,20 +43,23 @@ library(doParallel)  #install.packages("doParallel")
 # working directory, the one the functions are in
 workDir = "D:/2_Projects/1_Author/4_MAIAC_process/"
 
-# output directory, the directory to export the processed tiles
+# output directory, the one to export the processed tiles
 outputDir = "D:/1_Dataset/1_MODIS/1_MCD43A4_SurfRef16/MAIAC_ProcessedTiles/"
 
 # preview directory, the one to to export preview images "png"
 previewDir = "D:/1_Dataset/1_MODIS/1_MCD43A4_SurfRef16/MAIAC_PreviewTiles/"
 
-# inputDir, the one the raw files are in
+# nan tiles directory, the one where nan tiles are stored, to use in case of non-existant RTLS file for processing
+nanTilesDir = "D:/1_Dataset/1_MODIS/1_MCD43A4_SurfRef16/MAIAC_NanTiles/"
+
+# inputDir, the one where the raw files are
 inputDir = "D:/h00v01/"
 
 # tile to process
 # TODO: one per time is working, more than one not sure
 tile = c("h00v01")
 
-# download config, if needed
+# url to download maiac files for south america, in case of needed
 maiacFtpUrl = "ftp://maiac@dataportal.nccs.nasa.gov/DataRelease/SouthAmerica/"
 
 # process date range
