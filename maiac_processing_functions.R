@@ -217,37 +217,61 @@ ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url) {
     #x1 = RemoveDirectoryFromFilenameVec(x[i])
     x1 = basename(x[i])
 
+    # create list of suffixes for product (suf16) and rtls (suf5)
+    suf16 = c("01","02","03","04","05","06","07","08","09","10","11","12","13","14","15","16")
+    suf5 = c("1","2","3","4","5")
+
     # check if x[i] converted tif file exists
     # if it does, just throw some message
-    # if it doesnt, try to convert, if it works nice, if it doesnt try to download the tile and process it
-    if (!file.exists(paste0(output_dir,tmp_dir,x1,"_01.tif")) & !file.exists(paste0(output_dir,tmp_dir,x1,"_1.tif"))) {
+    # if it doesnt, try to convert, if it works nice just go on, if it doesnt try to download the tile and process it again
+    if (any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",suf16,".tif"))) & any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",suf5,".tif")))) {
+    #if (!file.exists(paste0(output_dir,tmp_dir,x1,"_01.tif")) & !file.exists(paste0(output_dir,tmp_dir,x1,"_1.tif"))) {
       # message
       print(paste0("Converting HDF to TIF file ",i," from ",length(x)," -> ",x1))
       
-      # sds=T converts all files, while sd_index is only 1 file
-      # dont need to specify data type for each SDS, it detects by itself
+      # try to convert for the first time
       gdal_translate(paste0(input_dir,x[i]), dst_dataset = paste0(output_dir,tmp_dir,x1,".tif"), verbose=F, sds=TRUE)
       
       # check if file exists after converting
-      if (!file.exists(paste0(output_dir,tmp_dir,x1,"_01.tif")) & !file.exists(paste0(output_dir,tmp_dir,x1,"_1.tif"))) {
-        # if it doesn't, it means that the HDF is corrupted and a download is needed
-        w=0
-        while((!file.exists(paste0(output_dir,tmp_dir,x1,"_01.tif")) & !file.exists(paste0(output_dir,tmp_dir,x1,"_1.tif"))) & w<5) {
+      # if it doesn't, it can mean two things: (1) converting was somehow interrupted -> convert again, or (2) HDF is corrupted -> download again
+      #if (!file.exists(paste0(output_dir,tmp_dir,x1,"_01.tif")) & !file.exists(paste0(output_dir,tmp_dir,x1,"_1.tif"))) {
+      try_count = 0
+      while (any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",suf16,".tif"))) & any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",suf5,".tif"))) & try_count < 3) {
+        
+        # option 1, problem in conversion
+        # solution: try to convert it again, and test for all files, test this 2 times
+        if ((any(file.exists(paste0(output_dir,tmp_dir,x1,"_",suf16,".tif"))) | any(file.exists(paste0(output_dir,tmp_dir,x1,"_",suf5,".tif")))) & try_count < 2) {
+          # try to convert again
+          gdal_translate(paste0(input_dir,x[i]), dst_dataset = paste0(output_dir,tmp_dir,x1,".tif"), verbose=F, sds=TRUE)
+          
+          # counter
+          try_count = try_count + 1
+          
+          # go back to the while statement to check if all files exist
+          next
+        }
+        
+        # after two tries converting again, the problem might be a corrupted HDF
+        # option 2, corrupted HDF
+        # solution: download again, test download for 5 times
+        try_count_download = 0
+        while (any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",suf16,".tif"))) & any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",suf5,".tif"))) & try_count_download < 5) {
           # message
           print(paste0("Error while converting file ",i," from ",length(x)," -> ",x1))
           
           # download the missing file
-          DownloadMissingFile(x1, paste0(input_dir,dirname(x[i])), maiac_ftp_url)
+          DownloadMissingFile(x1, paste0(input_dir,dirname(x[i]),"/"), maiac_ftp_url)
           
           # try to convert again
-          gdal_translate(paste0(input_dir,x1), dst_dataset = paste0(output_dir,tmp_dir,x1,".tif"), verbose=F, sds=TRUE)
+          gdal_translate(paste0(input_dir,x[i]), dst_dataset = paste0(output_dir,tmp_dir,x1,".tif"), verbose=F, sds=TRUE)
           
           # count
-          w=w+1 
+          try_count_download = try_count_download + 1 
         }
         
         # check if the file was extracted
-        if (file.exists(paste0(output_dir,tmp_dir,x1,"_01.tif")) & file.exists(paste0(output_dir,tmp_dir,x1,"_1.tif"))) {
+        #if (file.exists(paste0(output_dir,tmp_dir,x1,"_01.tif")) & file.exists(paste0(output_dir,tmp_dir,x1,"_1.tif"))) {
+        if (all(file.exists(paste0(output_dir,tmp_dir,x1,"_",suf16,".tif"))) | all(file.exists(paste0(output_dir,tmp_dir,x1,"_",suf5,".tif")))) {
           print(paste0("File ",x1," was downloaded and extracted with sucess. Error avoided (i hope), oh yeah!"))
         }
         

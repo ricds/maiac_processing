@@ -245,8 +245,10 @@ for (k in 1:17) {
 }
 
 # stop cluster
-if (PARALLEL_PROCESS_ENABLED)
+if (PARALLEL_PROCESS_ENABLED) {
   stopCluster(cl)
+  closeAllConnections()
+}
 
 # message
 print("All tile composites processed. Good job!")
