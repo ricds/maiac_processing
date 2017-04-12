@@ -217,7 +217,7 @@ for (k in 1:17) {
     nadir_brf_reflectance_per_band = ReorderBrickPerBand(nadir_brf_reflectance)
     rm(list = c("nadir_brf_reflectance"))
     
-    # create median value BRF 8-day composite from the BRF brick and masked QA brick
+    # create median value BRF 8-day composite from the BRF brick and masked QA brick, the output is 9 rasters (1-8 band, and no_samples)
     median_brf_reflectance = CalcMedianBRF8day(nadir_brf_reflectance_per_band)
     rm(list = c("nadir_brf_reflectance_per_band"))
     

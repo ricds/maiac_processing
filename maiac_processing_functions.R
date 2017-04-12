@@ -648,7 +648,7 @@ CalcMedianBRF8day = function(raster_brick_per_band) {
   
   # only bands
   median_raster_brick_per_band=brick(c(lapply(median_raster_brick_per_band,FUN=subset, subset=1),median_raster_brick_per_band[[1]][[2]]))
-  names(median_raster_brick_per_band)=c("band1","band2","band3","band4","band5","band6","band7","band8","samples")
+  names(median_raster_brick_per_band)=c("band1","band2","band3","band4","band5","band6","band7","band8","no_samples")
   
   return(median_raster_brick_per_band)
 }
@@ -656,7 +656,8 @@ CalcMedianBRF8day = function(raster_brick_per_band) {
 # function to write the processed file to disk while applying a factor of 10000 to bands 1-8 to reduce disk space usage
 SaveProcessedTileComposite = function(medianBRF, output_dir, composite_fname, tile, year, day) {
   # factors for each band
-  factors = c(10000,10000,10000,10000,10000,10000,10000,10000,1)
+  #factors = c(10000,10000,10000,10000,10000,10000,10000,10000,1)
+  factors = c(10000,10000,10000,10000,10000,10000,10000,10000,10000)
   
   # apply factors
   b = brick(lapply(c(1:9),FUN=function(x) round(unstack(medianBRF)[[x]]*factors[x],0)))
