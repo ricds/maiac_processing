@@ -234,7 +234,7 @@ for (k in 1:17) {
     unlink(file.path(output_dir, tmp_dir), recursive=TRUE)
 
     # End Loop 8-day composite
-    return(1)
+    return(0)
   }
   
   
