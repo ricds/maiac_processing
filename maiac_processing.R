@@ -138,7 +138,7 @@ if (PARALLEL_PROCESS_ENABLED)
 
 # Loop through each day and year to process the composites
 foreach(j = 1:dim(loop_mat)[1]) %dopar% {
-  #j=150
+  #j=144
   
   # get year
   year = loop_mat[j,2]
@@ -266,3 +266,5 @@ if (MEASURE_RUN_TIME_ENABLED) {
 
 
 
+# list memory
+#sort( sapply(ls(),function(x){object.size(get(x))})) 

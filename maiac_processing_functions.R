@@ -430,9 +430,12 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG) {
     # get rtls days that are lower than image day, and that are near the image day (12 days is an arbitrary number), get always the lowest rlts day (index 1)
     idx = which(img_day <= rtls_day_vec & abs(rtls_day_vec - img_day) <= 12)[1]
     
-    # if there is no rtls available, get the closest one
-    if (is.na(idx))
+    # if there is no rtls available, get the closest one and log it
+    if (is.na(idx)) {
       idx = which(min(abs(img_day - rtls_day_vec)) == abs(img_day - rtls_day_vec))
+      line = paste0("Image day: ", img_day,", RTLS day: ", rtls_day_vec[idx])
+      write(line,file=paste0(output_dir, "processed_closest_rtls.txt"), append=TRUE)
+    }
     
     # get values
     kLi = kL[[idx]]
