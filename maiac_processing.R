@@ -83,6 +83,9 @@ is_qa_filter = FALSE
 # enables filtering by Extreme Angles > 80, may reduce number of available pixels
 is_ea_filter = FALSE
 
+# number of days on each composite
+composite_no = 16
+
 # parameters
 MEASURE_RUN_TIME_ENABLED = TRUE
 PARALLEL_PROCESS_ENABLED = TRUE
@@ -94,14 +97,10 @@ PARALLEL_PROCESS_ENABLED = TRUE
 source(functions_fname)
 
 # define the output base filename
-composite_fname = "SR_Nadir_8day"
-if (length(product)==1) composite_fname = paste0(composite_fname,"_",product) else composite_fname = paste0(composite_fname,"_MAIACTerraAqua")
-if (is_qa_filter & is_ea_filter) composite_fname = paste0(composite_fname,"_FilterQA-EA") else
-  if (is_qa_filter) composite_fname = paste0(composite_fname,"_FilterQA") else
-    if (is_ea_filter) composite_fname = paste0(composite_fname,"_FilterEA")
+composite_fname = CreateCompositeName(composite_no, product, is_qa_filter, is_ea_filter)
 
-# create matrix of days on each 8-day composite
-eight_day_mat = matrix(sprintf("%03d",1:360),ncol=8,byrow=T)
+# create matrix of days on each composite
+day_mat = CreateDayMatrix(composite_no)
 
 # create preview directory if it doesnt exist
 dir.create(file.path(tile_preview_dir), showWarnings = FALSE)
@@ -129,23 +128,23 @@ if (PARALLEL_PROCESS_ENABLED) {
   clusterEvalQ(cl, library(RCurl)) # pra passar packages pros workers
 }
 
-# create year/day matrix
-year_day_mat = expand.grid(c(1:45), c(2000:2016))
-year_day_mat = cbind(year_day_mat$Var1, year_day_mat$Var2)
+# create loop matrix containing all the information to iterate
+loop_mat = expand.grid(c(1:dim(day_mat)[1]), c(2000:2016))
+loop_mat = cbind(loop_mat$Var1, loop_mat$Var2)
 
 # send variables to clusters
 if (PARALLEL_PROCESS_ENABLED)
   clusterExport(cl, varlist=as.vector(c(lsf.str(), ls())))
 
-# Loop 8-day composite
-foreach(j = 1:dim(year_day_mat)[1]) %dopar% {
-  #j=28
+# Loop through each day and year to process the composites
+foreach(j = 1:dim(loop_mat)[1]) %dopar% {
+  #j=150
   
   # get year
-  year = year_day_mat[j,2]
+  year = loop_mat[j,2]
   
   # get the day vector
-  day = eight_day_mat[year_day_mat[j,1],]
+  day = day_mat[loop_mat[j,1],]
   
   # check if 8-day tile composite processed file already exist, otherwise just skip to next
   if (IsTileCompositeProcessed(composite_fname, tile, year, day, output_dir))
@@ -213,8 +212,8 @@ foreach(j = 1:dim(year_day_mat)[1]) %dopar% {
   nadir_brf_reflectance_per_band = ReorderBrickPerBand(nadir_brf_reflectance)
   rm(list = c("nadir_brf_reflectance"))
   
-  # create median value BRF 8-day composite from the BRF brick and masked QA brick, the output is 9 rasters (1-8 band, and no_samples)
-  median_brf_reflectance = CalcMedianBRF8day(nadir_brf_reflectance_per_band)
+  # create median value BRF composite from the BRF brick and masked QA brick, the output is 9 rasters (1-8 band, and no_samples)
+  median_brf_reflectance = CalcMedianBRF(nadir_brf_reflectance_per_band)
   rm(list = c("nadir_brf_reflectance_per_band"))
   
   # plot brfnadir to file to verify it later
@@ -230,7 +229,7 @@ foreach(j = 1:dim(year_day_mat)[1]) %dopar% {
   # delete temporary directory
   unlink(file.path(output_dir, tmp_dir), recursive=TRUE)
   
-  # End Loop 8-day composite
+  # End Loop Composite
   return(0)
 }
 

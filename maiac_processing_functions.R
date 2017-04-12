@@ -647,7 +647,7 @@ ReorderBrickPerBand = function(raster_brick) {
 }
 
 # function to merge the data from 8-day time span into one composite file using the median value
-CalcMedianBRF8day = function(raster_brick_per_band) {
+CalcMedianBRF = function(raster_brick_per_band) {
   #raster_brick_per_band=nadirBRFBrickMaskedPerBand
   
   # function to calculate median and return the nearest value to the median
@@ -766,4 +766,41 @@ ReprojectComposite = function(x, output_dir, tmp_dir, year, day, output_raster) 
            verbose=F,
            overwrite = T)
   
+}
+
+# function to create the day matrix
+CreateDayMatrix = function(composite_no = 8) {
+  # create matrix of days on each composite
+  day_mat = matrix(sprintf("%03d",1:(360 - 360%%composite_no)), ncol=composite_no, byrow=T)
+
+  # return
+  return(day_mat)
+}
+
+CreateCompositeName = function(composite_no, product, is_qa_filter, is_ea_filter) {
+  # base name
+  composite_fname = paste0("SR_Nadir_", composite_no ,"day")
+  
+  # which product
+  if (length(product)==1) {
+    composite_fname = paste0(composite_fname,"_",product)
+  } else {
+    composite_fname = paste0(composite_fname,"_MAIACTerraAqua")
+  }
+  
+  # which filter
+  if (is_qa_filter & is_ea_filter) {
+    composite_fname = paste0(composite_fname,"_FilterQA-EA")
+  } else {
+    if (is_qa_filter) {
+      composite_fname = paste0(composite_fname,"_FilterQA")
+    } else {
+      if (is_ea_filter) {
+        composite_fname = paste0(composite_fname,"_FilterEA")
+      }
+    }
+  }
+  
+  #return
+  return(composite_fname)
 }
