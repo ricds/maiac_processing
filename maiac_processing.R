@@ -178,8 +178,10 @@ for (k in 1:17) {
     ConvertHDF2TIF(parameter_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url)
     
     # remove directory from filenames, return only the "filenames".hdf
-    product_fname = RemoveDirectoryFromFilenameVec(product_fname)
-    parameter_fname = RemoveDirectoryFromFilenameVec(parameter_fname)
+    #product_fname = RemoveDirectoryFromFilenameVec(product_fname)
+    #parameter_fname = RemoveDirectoryFromFilenameVec(parameter_fname)
+    product_fname = basename(product_fname)
+    parameter_fname = basename(parameter_fname)
     
     # load files needed for BRF normalization
     brf_reflectance = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "sur_refl")

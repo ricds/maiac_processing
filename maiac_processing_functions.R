@@ -213,7 +213,8 @@ ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url) {
     
     # adjust output filename in case the product name has folder in the beggining
     #x1 = x[i]
-    x1 = RemoveDirectoryFromFilenameVec(x[i])
+    #x1 = RemoveDirectoryFromFilenameVec(x[i])
+    x1 = basename(x[i])
 
     # check if x[i] converted tif file exists
     # if it does, just throw some message
