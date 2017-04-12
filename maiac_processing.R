@@ -29,6 +29,9 @@
 ## http://www.ctahr.hawaii.edu/grem/mod13ug/sect0005.html, http://glcf.umd.edu/data/modis/
 ##################################################
 
+# clean environment
+rm(list = ls())
+
 # libraries used on the script
 library(raster)  #install.packages("raster")
 library(gdalUtils)  #install.packages("gdalUtils")
@@ -40,77 +43,84 @@ library(doParallel)  #install.packages("doParallel")
 
 # CONFIG ------------------------------------------------------------------
 
-# working directory, the one the functions are in
-workDir = "D:/2_Projects/1_Author/4_MAIAC_process/"
+# functions filename with full directory
+functions_fname = "D:/2_Projects/1_Author/4_MAIAC_process/maiac_processing/maiac_processing_functions.R"
 
 # output directory, the one to export the processed tiles
-outputDir = "D:/1_Dataset/1_MODIS/1_MCD43A4_SurfRef16/MAIAC_ProcessedTiles/"
+output_dir = "D:/1_Dataset/1_MODIS/1_MCD43A4_SurfRef16/MAIAC_ProcessedTiles/"
 
-# preview directory, the one to to export preview images "png"
-previewDir = "D:/1_Dataset/1_MODIS/1_MCD43A4_SurfRef16/MAIAC_PreviewTiles/"
+# latlon tiles directory, the one where latlon tiles are stored
+latlon_tiles_dir = "D:/1_Dataset/1_MODIS/1_MCD43A4_SurfRef16/MAIAC_LatLonTiles/"
 
 # nan tiles directory, the one where nan tiles are stored, to use in case of non-existant RTLS file for processing
-nanTilesDir = "D:/1_Dataset/1_MODIS/1_MCD43A4_SurfRef16/MAIAC_NanTiles/"
+nan_tiles_dir = "D:/1_Dataset/1_MODIS/1_MCD43A4_SurfRef16/MAIAC_NanTiles/"
 
-# inputDir, the one where the raw files are
-inputDir = "D:/h00v01/"
+# preview directory, the one to to export preview images "png"
+tile_preview_dir = "D:/1_Dataset/1_MODIS/1_MCD43A4_SurfRef16/MAIAC_PreviewTiles/"
+
+# input_dir, the one where the raw files are
+input_dir = "D:/h00v01/"
 
 # tile to process
 # TODO: one per time is working, more than one not sure
 tile = c("h00v01")
 
 # url to download maiac files for south america, in case of needed
-maiacFtpUrl = "ftp://maiac@dataportal.nccs.nasa.gov/DataRelease/SouthAmerica/"
+maiac_ftp_url = "ftp://maiac@dataportal.nccs.nasa.gov/DataRelease/SouthAmerica/"
 
 # process date range
 # TODO: apply this somehow
-processFrom = "04-08-2016"
-processTo = "11-08-2016"
+process_from_date = "04-08-2016"
+process_to_date = "11-08-2016"
 
 # product name MAIACTBRF, MAIACABRF, MAIACRTLS
 product = c("MAIACTBRF","MAIACABRF")
 parameters = "MAIACRTLS"
 
 # enables filtering by Quality Assessment bits (adjacent clouds and stuff), may reduce number of available pixels
-enableQAFiltering = FALSE
+is_qa_filter = FALSE
 
 # enables filtering by Extreme Angles > 80, may reduce number of available pixels
-enableExtremeAnglesFiltering = TRUE
+is_ea_filter = FALSE
 
-
+# parameters
+MEASURE_RUN_TIME = TRUE
+PARALLEL_PROCESS_ENABLED = TRUE
 
 
 # SEQUENCE FOR SEPARATE TILE PROCESSING -------------------------------------------------------------------
 
+# load functions
+source(functions_fname)
 
 # define the output base filename
-compositeFilename = "SR_Nadir_8day"
-if (length(product)==1) compositeFilename = paste0(compositeFilename,"_",product) else compositeFilename = paste0(compositeFilename,"_MAIACTerraAqua")
-if (enableQAFiltering & enableExtremeAnglesFiltering) compositeFilename = paste0(compositeFilename,"_FilterQA-EA") else
-  if (enableQAFiltering) compositeFilename = paste0(compositeFilename,"_FilterQA") else
-    if (enableExtremeAnglesFiltering) compositeFilename = paste0(compositeFilename,"_FilterEA")
+composite_fname = "SR_Nadir_8day"
+if (length(product)==1) composite_fname = paste0(composite_fname,"_",product) else composite_fname = paste0(composite_fname,"_MAIACTerraAqua")
+if (is_qa_filter & is_ea_filter) composite_fname = paste0(composite_fname,"_FilterQA-EA") else
+  if (is_qa_filter) composite_fname = paste0(composite_fname,"_FilterQA") else
+    if (is_ea_filter) composite_fname = paste0(composite_fname,"_FilterEA")
 
 # create matrix of days on each 8-day composite
-eightDayMatrix = matrix(sprintf("%03d",1:360),ncol=8,byrow=T)
+eight_day_mat = matrix(sprintf("%03d",1:360),ncol=8,byrow=T)
 
 # create preview directory if it doesnt exist
-dir.create(file.path(previewDir), showWarnings = FALSE)
+dir.create(file.path(tile_preview_dir), showWarnings = FALSE)
 
 # create nan rasters for every tile in case it is needed
-createNanTiles(inputDir, outputDir, tile)
+CreateNanTiles(input_dir, latlon_tiles_dir, nan_tiles_dir, tile)
 
 # measure time
-start.time <- Sys.time()
-
-#parallel method
+if (MEASURE_RUN_TIME_ENABLED)
+  start.time = Sys.time()
 
 # Calculate the number of cores minus 1
-no_cores <- detectCores()-1
+if (PARALLEL_PROCESS_ENABLED)
+  no_cores = detectCores() - 1
 
 # Initiate cluster
-cl<-makeCluster(no_cores)
+cl = makeCluster(no_cores)
 registerDoParallel(cl)
-#clusterExport(cl, varlist=c("singleHDF2TIF", "inputDir","outputDir"))
+#clusterExport(cl, varlist=c("singleHDF2TIF", "input_dir","output_dir"))
 clusterEvalQ(cl, library(raster)) # pra passar packages pros workers
 clusterEvalQ(cl, library(gdalUtils)) # pra passar packages pros workers
 clusterEvalQ(cl, library(rgdal)) # pra passar packages pros workers
@@ -126,108 +136,106 @@ for (k in 1:17) {
   
   # Loop 8-day composite
   # parallel
-  foreach(j = 1:dim(eightDayMatrix)[1]) %dopar% {
-  #for (j in 1:dim(eightDayMatrix)[1]) {
+  foreach(j = 1:dim(eight_day_mat)[1]) %dopar% {
+  #for (j in 1:dim(eight_day_mat)[1]) {
     #j=28
     
     # get the day vector
-    day = eightDayMatrix[j,]
+    day = eight_day_mat[j,]
     
     # check if 8-day tile composite processed file already exist, otherwise just skip to next
-    if (checkProcessedTileComposite(compositeFilename, tile, year, day, outputDir))
+    if (IsTileCompositeProcessed(composite_fname, tile, year, day, output_dir))
       return(0)
       #next
     
     # set temporary directory
-    tmpDir = paste0("tmp",year,day[8],"/")
+    tmp_dir = paste0("tmp",year,day[8],"/")
     
     # create temporary directory
-    dir.create(file.path(outputDir, tmpDir), showWarnings = FALSE)
+    dir.create(file.path(output_dir, tmp_dir), showWarnings = FALSE)
     
     # get filenames of each 8-day product and parameters files
-    fnameProduct = getFilenames(product, inputDir, tile, year, day)
-    fnameParameters = getFilenames(parameters, inputDir, tile, year, day)
+    product_fname = GetFilenameVec(product, input_dir, tile, year, day)
+    parameter_fname = GetFilenameVec(parameters, input_dir, tile, year, day)
     
-    # test if fnameProduct is different than 0
-    if (length(fnameProduct)==0) {
-      unlink(file.path(outputDir, tmpDir), recursive=TRUE)
+    # test if product_fname is different than 0
+    if (length(product_fname)==0) {
+      unlink(file.path(output_dir, tmp_dir), recursive=TRUE)
       return(0)
     }
     
     # filter product names by only the product tiles/dates that have RTLS tiles
-    fnameProduct = filterProductTilesbyRTLSTiles(fnameProduct, fnameParameters, outputDir)
+    product_fname = FilterProductTilesbyRTLSTiles(product_fname, parameter_fname, output_dir)
     
     # convert the files from hdf to tif, <NO PARALELL>
     # time no parallel: 57 min (366 files)
     # time parallel: estimado 60% do tempo 34 min (366 files), deu 33% -> 19 min (366 files)
-    convertHDF2TIF(fnameProduct, inputDir, outputDir, tmpDir, maiacFtpUrl)
-    convertHDF2TIF(fnameParameters, inputDir, outputDir, tmpDir, maiacFtpUrl)
+    ConvertHDF2TIF(product_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url)
+    ConvertHDF2TIF(parameter_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url)
     
-    # adjust filenames to remove the folder
-    if (nchar(fnameProduct[1]) == 37) {
-      fnameProduct = substr(fnameProduct,6,37)
-      fnameParameters = substr(fnameParameters,6,37)
-    }
+    # remove directory from filenames, return only the "filenames".hdf
+    product_fname = RemoveDirectoryFromFilenameVec(product_fname)
+    parameter_fname = RemoveDirectoryFromFilenameVec(parameter_fname)
     
     # check if the RTLS exists for this tile, if false return a empty (nan) raster as the processed i tile and go to the next iteration
-    if (checkRTLSTile(tile, fnameParameters, inputDir, outputDir, tmpDir)) {
-      unlink(file.path(outputDir, tmpDir), recursive=TRUE)
+    if (IsRTLSTileAvailable(parameter_fname, tile, input_dir, output_dir, tmp_dir)) {
+      unlink(file.path(output_dir, tmp_dir), recursive=TRUE)
       return(0)
       #next
     }
     
     # load files needed for BRF normalization
-    brfBrick = loadFiles(fnameProduct, outputDir, tmpDir, "sur_refl")
-    brfFv = loadFiles(fnameProduct, outputDir, tmpDir, "Fv")
-    brfFg = loadFiles(fnameProduct, outputDir, tmpDir, "Fg")
-    rtlsKiso = loadFiles(fnameParameters, outputDir, tmpDir, "Kiso")
-    rtlsKvol = loadFiles(fnameParameters, outputDir, tmpDir, "Kvol")
-    rtlsKgeo = loadFiles(fnameParameters, outputDir, tmpDir, "Kgeo")
+    brf_reflectance = LoadFiles(product_fname, output_dir, tmp_dir, "sur_refl")
+    brf_fv = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "Fv")
+    brf_fg = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "Fg")
+    rtls_kiso = LoadMAIACFiles(parameter_fname, output_dir, tmp_dir, "Kiso")
+    rtls_kvol = LoadMAIACFiles(parameter_fname, output_dir, tmp_dir, "Kvol")
+    rtls_kgeo = LoadMAIACFiles(parameter_fname, output_dir, tmp_dir, "Kgeo")
     
     # filter bad values or fill values
     # Fv and Fg: -99999 is a fill value, should be removed
-    brfFv = filterBadValues(brfFv, equal=-99999)
-    brfFg = filterBadValues(brfFg, equal=-99999)
-    #brfBrick = filterBadValues(brfBrick, min=0, max=1) # not needed i think, if you filter the final result it's ok
+    brf_fv = FilterBadValues(brf_fv, equal=-99999)
+    brf_fg = FilterBadValues(brf_fg, equal=-99999)
+    #brf_reflectance = FilterBadValues(brf_reflectance, min=0, max=1) # not needed i think, if you filter the final result it's ok
     
     # convert BRF to Nadir
-    nadirBRFBrick = convertBRFNadir(brfBrick, brfFv, brfFg, rtlsKiso, rtlsKvol, rtlsKgeo)
-    rm(list = c("brfBrick", "brfFv", "brfFg", "rtlsKiso", "rtlsKvol", "rtlsKgeo"))
+    nadir_brf_reflectance = ConvertBRFNadir(brf_reflectance, brf_fv, brf_fg, rtls_kiso, rtls_kvol, rtls_kgeo)
+    rm(list = c("brf_reflectance", "brf_fv", "brf_fg", "rtls_kiso", "rtls_kvol", "rtls_kgeo"))
     
     # create and apply QA filter mask following a set of rules in function filterQuality()
     # remove pixels such as: possibly cloud, cloud adjacent, cloud shadow, etc.
-    if (enableQAFiltering) {
-      qaBrick = loadFiles(fnameProduct, outputDir, tmpDir, "Status_QA")
-      qaMask = createBatchQAMask(qaBrick)
-      nadirBRFBrick = applyListMask(nadirBRFBrick, qaMask)
-      rm(list = c("qaBrick","qaMask"))
+    if (is_qa_filter) {
+      qa_brick = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "Status_QA")
+      qa_mask = CreateQAMask(qa_brick)
+      nadir_brf_reflectance = ApplyMaskOnBrick(nadir_brf_reflectance, qa_mask)
+      rm(list = c("qa_brick","qa_mask"))
     }
     
     # create and apply a mask based on extreme sun angles >80
-    if (enableExtremeAnglesFiltering) {
-      nadirBRFBrick = filterEA(nadirBRFBrick, fnameProduct, outputDir, tmpDir)
+    if (is_ea_filter) {
+      nadir_brf_reflectance = FilterEA(nadir_brf_reflectance, product_fname, output_dir, tmp_dir)
     }
     
     # put the bands together so its easier to calc the median
-    nadirBRFBrickPerBand = reorderBrickPerBand(nadirBRFBrick)
-    rm(list = c("nadirBRFBrick"))
+    nadir_brf_reflectance_per_band = ReorderBrickPerBand(nadir_brf_reflectance)
+    rm(list = c("nadir_brf_reflectance"))
     
     # create median value BRF 8-day composite from the BRF brick and masked QA brick
-    medianBRF = calcMedianBRF8day(nadirBRFBrickPerBand)
-    rm(list = c("nadirBRFBrickPerBand"))
+    median_brf_reflectance = CalcMedianBRF8day(nadir_brf_reflectance_per_band)
+    rm(list = c("nadir_brf_reflectance_per_band"))
     
     # plot brfnadir to file to verify it later
-    png(filename=paste0(previewDir,"fig_",compositeFilename,"_",year,day[8],".png"), type="cairo", units="cm", width=15, height=15, pointsize=10, res=300)
+    png(filename=paste0(tile_preview_dir,"fig_",composite_fname,"_",year,day[8],".png"), type="cairo", units="cm", width=15, height=15, pointsize=10, res=300)
     par(oma=c(4,4,4,4))
-    plot(medianBRF)
+    plot(median_brf_reflectance)
     dev.off()
     
     # save the tile median in the composite directory
-    saveProcessedTileComposite(medianBRF, outputDir, compositeFilename, tile, year, day)
-    rm(list = c("medianBRF"))
+    SaveProcessedTileComposite(median_brf_reflectance, output_dir, composite_fname, tile, year, day)
+    rm(list = c("median_brf_reflectance"))
     
     # delete temporary directory
-    unlink(file.path(outputDir, tmpDir), recursive=TRUE)
+    unlink(file.path(output_dir, tmp_dir), recursive=TRUE)
 
     # End Loop 8-day composite
     return(1)
@@ -238,28 +246,31 @@ for (k in 1:17) {
 }
 
 # stop cluster
-stopCluster(cl)
+if (PARALLEL_PROCESS_ENABLED)
+  stopCluster(cl)
 
 # message
 print("All tile composites processed. Good job!")
 
-# measure time
-end.time <- Sys.time()
-time.taken <- end.time - start.time
-time.taken
+# measure run time
+if (MEASURE_RUN_TIME_ENABLED) {
+  end.time <- Sys.time()
+  time.taken <- end.time - start.time
+  time.taken
+}
 
 # TO DO: MAKE CODE TO MOSAIC ALL TILES AT ONCE
 #
 # # list and load tiles
-# processedList = list.files(paste0(outputDir,tmpDir), pattern = "Processed")
+# processed_tiles = list.files(paste0(output_dir,tmp_dir), pattern = "Processed")
 # 
 # # mosaic the tiles
-# medianBRFMosaic = mosaicTilesAndSave(processedList, outputDir, tmpDir, year, day)
+# mosaic_brf = MosaicTilesAndSave(processed_tiles, output_dir, tmp_dir, year, day)
 # 
 # # plot brfnadir to file to verify it later
-# png(filename=paste0(previewDir,"fig_",compositeFilename,"_",year,day[8],".png"), type="cairo", units="cm", width=15, height=15, pointsize=10, res=300)
+# png(filename=paste0(tile_preview_dir,"fig_",composite_fname,"_",year,day[8],".png"), type="cairo", units="cm", width=15, height=15, pointsize=10, res=300)
 # par(oma=c(4,4,4,4))
-# plot(medianBRFMosaic)
+# plot(mosaic_brf)
 # dev.off()
 
 

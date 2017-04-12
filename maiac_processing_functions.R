@@ -3,167 +3,242 @@
 ## Script purpose: to provide functions for maiac_processing.R
 ## Author: Ricardo Dal'Agnol da Silva (ricds@hotmail.com)
 ## Date: 2017-02-09
-## Notes: 
+## Notes: https://www.r-bloggers.com/r-style-guide/, http://adv-r.had.co.nz/Style.html, https://google.github.io/styleguide/Rguide.xml
 ##################################################
 
-# function to check for a processed composite, if it does exist just go to the next iteration
-checkProcessedComposite = function(compositeFilename, year, day, outputDir) {
-  if (file.exists(paste0(outputDir,compositeFilename,"_",year,day[8],".tif"))) {
+# function to check if given composite exists in output_dir, if it does return TRUE, otherwise return FALSE
+IsCompositeProcessed = function(composite_fname, year, day, output_dir) {
+  # set escape variable default
+  result = FALSE
+  
+  # check if composite exists
+  if (file.exists(paste0(output_dir,composite_fname,"_",year,day[8],".tif"))) {
     # message
-    print(paste0("Composite ",paste0(compositeFilename,"_",year,day[8],".tif")," is already processed, going to the next iteration."))
+    print(paste0("Composite ",paste0(composite_fname,"_",year,day[8],".tif")," is already processed, going to the next iteration."))
     
     # go to the next iteration
-    return(TRUE)
+    result = TRUE
   }
-  return(FALSE)
+  
+  # return
+  return(result)
 }
 
 # function to check for a processed tile composite, if it does exist just go to the next iteration
-checkProcessedTileComposite = function(compositeFilename, tile, year, day, outputDir) {
-  if (file.exists(paste0(outputDir,compositeFilename,".",tile,".",year,day[8],".tif"))) {
+IsTileCompositeProcessed = function(composite_fname, tile, year, day, output_dir) {
+  # set escape variable default
+  result = FALSE
+  
+  # check if tile composite exists
+  if (file.exists(paste0(output_dir,composite_fname,".",tile,".",year,day[8],".tif"))) {
     # message
-    print(paste0("Tile composite ",paste0(compositeFilename,".",tile,".",year,day[8],".tif")," is already processed, going to the next iteration."))
+    print(paste0("Tile composite ",paste0(composite_fname,".",tile,".",year,day[8],".tif")," is already processed, going to the next iteration."))
     
     # go to the next iteration
-    return(TRUE)
+    result = TRUE
   }
-  return(FALSE)
+  return(result)
+}
+
+# function to check for a processed tile, if it does return TRUE, otherwise return FALSE
+isTileProcessed = function(tile, input_dir, output_dir, tmp_dir) {
+  # set escape variable default
+  result = FALSE
+  
+  #x=tile[i]
+  if (file.exists(paste0(output_dir,tmp_dir,"Processed.",x,".tif"))) {
+    # message
+    print(paste0("Tile ",x," is already processed, going to the next iteration."))
+    
+    # go to the next iteration
+    result = TRUE
+  }
+  return(result)
+}
+
+# function to check if RTLS tile is available, if it does return TRUE, if it doesn't exist, create a "processed tile" with nan values
+IsRTLSTileAvailable = function(parameter_fname, tile, input_dir, output_dir, tmp_dir) {
+  #x=tile[i]
+  #y=parameter_fname
+  
+  # set escape variable default
+  result = FALSE
+  
+  # check if x exist in y
+  existing_tiles = substr(parameter_fname, 11, 16)
+  idx = grep(tile, existing_tiles)
+  
+  # if RTLS tile does not exist return the nan tile and go to the next iteration
+  if (length(idx)==0) {
+    # open the nan tile
+    r = stack(paste0(nan_tiles_dir,"nantile.",tile,".tif"))
+    
+    # save the nan tile as the processed tile
+    writeRaster(r, filename=paste0(output_dir, tmp_dir, "Processed.", tile, ".tif"), format="GTiff", datatype='INT2S', overwrite=TRUE)
+    
+    # message
+    print(paste0("Tile ",tile," did not have a RTLS file, so a nan tile was used instead, going to the next iteration."))
+    
+    # go to the next iteration
+    result = TRUE
+  }
+  return(result)
 }
 
 # function to create nan tiles, to use in case the time series dont have data for one tile on a given date
-createNanTiles = function(inputDir,outputDir,tile) {
-  # create temporary directory
-  dir.create(file.path(outputDir, "tmpnanfiles/"), showWarnings = FALSE)
-  
-  for (i in 1:length(tile)) {
-    # check if nan tile i already exists
-    if (!file.exists(paste0("NanTiles/nantile.",tile[i],".tif"))) {
-      fname = paste0("MAIACLatlon",".",tile[i],".hdf")
-      
-      # convert
-      gdal_translate(paste0(inputDir,fname), dst_dataset = paste0(outputDir,"tmpnanfiles/",fname,".tif"), verbose=F, sds=TRUE)
-      
-      # open and assign nan
-      r = raster(paste0(outputDir,"tmpnanfiles/",fname,"_1.tif"))
-      r[]=NaN
-      
-      # save
-      writeRaster(r, filename=paste0("NanTiles/","nantile.",tile[i],".tif"), format="GTiff", datatype='INT2S', overwrite=TRUE)
-    }
+CreateNanTiles = function(input_dir, latlon_tiles_dir, nan_tiles_dir, tile) {
+  # check if nan tile already exists
+  if (!file.exists(paste0(nan_tiles_dir,"nantile",".",tile,".tif"))) {
+    # create tmpnanfiles directory
+    dir.create(file.path(nan_tiles_dir, "tmpnanfiles/"), showWarnings = FALSE)
+    
+    # set latlon fname
+    fname = paste0("MAIACLatlon",".",tile,".hdf")
+    
+    # convert
+    gdal_translate(paste0(latlon_tiles_dir,fname), dst_dataset = paste0(nan_tiles_dir,"tmpnanfiles/",fname,".tif"), verbose=F, sds=TRUE)
+    
+    # open and assign nan
+    r = raster(paste0(nan_tiles_dir,"tmpnanfiles/",fname,"_1.tif"))
+    r[]=NaN
+    
+    # save
+    writeRaster(r, filename=paste0(nan_tiles_dir,"nantile.",tile,".tif"), format="GTiff", datatype='INT2S', overwrite=TRUE)
+    
+    # delete tmpnanfiles directory
+    unlink(file.path(nan_tiles_dir, "tmpnanfiles/"), recursive=TRUE)
   }
+}
+
+# function to get filenames of each 8-day product or parameters files from a product "x", from a input directory "input_dir", of a respective "tile", "year" and day vector "day"
+GetFilenameVec = function(product, input_dir, tile, year, day) {
+  # create combinatios of product, tile, year and day
+  combinations = expand.grid(product,paste0(".",tile,"."),year,sprintf("%03s",day))
   
-  # delete tmp
-  unlink(file.path(outputDir, "tmpnanfiles/"), recursive=TRUE)
-}
-
-# function to get filenames of each 8-day product or parameters files from a product "x", from a input directory "inputDir", of a respective "tile", "year" and day vector "day"
-getFilenames = function(x, inputDir, tile, year, day) {
-  combinations = expand.grid(x,paste0(".",tile,"."),year,sprintf("%03s",day))
+  # merge the combinations
   combinations = paste0(combinations$Var1, combinations$Var2, combinations$Var3, combinations$Var4)
-  tmp = list.files(inputDir, pattern=paste(combinations,collapse="|"), recursive=T)
-  return(tmp)
+  
+  # prepare an outut
+  result = list.files(input_dir, pattern=paste(combinations,collapse="|"), recursive=T)
+  
+  # return the output
+  return(result)
 }
 
-# function to check for existing tiles in RTLS file list and filter them from the BRF products file list
-filterProductTilesbyRTLSTiles = function(x, y, outputDir) {
-  #x=fnameProduct
-  #y=fnameParameters
+# function to check for existing RTLS files and filter the BRF products by it, and report the missing RTLS
+FilterProductTilesbyRTLSTiles = function(product_fname, parameter_fname, output_dir) {
+  #x=product_fname
+  #y=parameter_fname
   
   # check which tiles exist in RTLS
-  existingTiles = substr(y,11,16)
+  existing_tiles = substr(parameter_fname, 11, 16)
   
   # check which tiles doesn't exist in RTLS but exist in product
-  missingTiles = unique(substr(x[-grep(paste0(existingTiles, collapse="|"),x)],11,16))
+  missing_tiles = unique(substr(product_fname[-grep(paste0(existing_tiles, collapse="|"), product_fname)],11,16))
   
   # report the missing RTLS tiles
-  if (length(missingTiles) > 0) {
-    missingDay = substr(y[[1]],22,24)
-    missingYear = substr(y[[1]],18,21)
-    line = paste(missingYear, missingDay, missingTiles, sep=",")
-    write(line,file=paste0(outputDir,"missingRTLStiles.txt"),append=TRUE)
+  if (length(missing_tiles) > 0) {
+    missing_day = substr(parameter_fname[[1]],22,24)
+    missing_year = substr(parameter_fname[[1]],18,21)
+    line = paste(missing_year, missing_day, missing_tiles, sep=",")
+    write(line,file=paste0(output_dir,"missingRTLStiles.txt"),append=TRUE)
   }
   
   # return products that have RTLS tiles
-  return(x[grep(paste0(existingTiles, collapse="|"),x)])
+  return(product_fname[grep(paste0(existing_tiles, collapse="|"),product_fname)])
 }
 
 # function to download a missing file while is processing
-downloadMissingFile = function(x, inputDir, maiacFtpUrl) {
-  #x = x[i]
+DownloadMissingFile = function(fname, directory, maiac_ftp_url) {
+  #fname = x[i]
   # example file: "MAIACABRF.h01v01.20132171720.hdf"
   # example: ftp://maiac@dataportal.nccs.nasa.gov/DataRelease/SouthAmerica/h00v00/2000/MAIACRTLS.h00v00.2000096.hdf
   
   # message
-  print(paste0("Trying to download the missing file: ",x))
+  print(paste0("Trying to download the missing file: ",fname))
   
   # file url
-  tile = substr(x,11,16)
-  year = substr(x,18,21)
-  fileUrl = paste0(maiacFtpUrl,tile,"/",year,"/",x)
+  tile = substr(fname,11,16)
+  year = substr(fname,18,21)
+  file_url = paste0(maiac_ftp_url,tile,"/",year,"/",fname)
   
   # download the file
-  tmp = try(getBinaryURL(fileUrl, verbose = F, username="maiac"))
+  tmp_file = try(getBinaryURL(file_url, verbose = F, username="maiac"))
   
   # download loop!
   w=0
-  while(w <= 15 && class(tmp) == "try-error") {
+  while(w <= 15 && class(tmp_file) == "try-error") {
     print(paste0("getBinaryURL error, trying again in ",10+w," seconds... try number ",w+1))
     Sys.sleep(10+w)
-    tmp = try(getBinaryURL(fileUrl, verbose = F, username="maiac"))
+    tmp_file = try(getBinaryURL(file_url, verbose = F, username="maiac"))
     closeAllConnections()
     w=w+1
   }
   
   # save the file on the disk
-  if (class(tmp) == "try-error") {
-    print(paste0("Could not download the missing file: ",x))
+  if (class(tmp_file) == "try-error") {
+    print(paste0("Could not download the missing file: ",fname))
   } else {
-    print(paste0("Download sucess: ",x))
-    writeBin(tmp, con=paste0(inputDir,x))
+    print(paste0("Download sucess: ",fname))
+    writeBin(tmp_file, con=paste0(directory,fname))
   }
 }
 
-# function to convert "x" files .HDF to .TIF from an input directory "inputDir" to a temporary output directory "outputDir"/tmp
-convertHDF2TIF = function(x, inputDir, outputDir, tmpDir, maiacFtpUrl) {
-  #x = fnameProduct
+# remove no_char_eliminar digits from the beggining of product_string in case number of letters of product_string is equal to no_char_limiar
+RemoveDirectoryFromFilenameVec = function(product_string) {
+  # find the string MAIAC inside the product string
+  pos = gregexpr('MAIAC', product_string[1])[[1]]
+  
+  # if the algorithm find a match
+  if (any(pos) > 0) {
+    # trim the string by the last MAIAC match
+    product_string = substr(product_string,pos[length(pos)],nchar(product_string[1]))
+  }
+  
+  return(product_string)
+}
+
+# function to convert "x" files .HDF to .TIF from an input directory "input_dir" to a temporary output directory "output_dir"/tmp
+ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url) {
+  #x = product_fname
   for(i in 1:length(x)) {
     #i=1
-    # adjust output filename in case the product name has folder in the beggining
-    x1 = x[i]
-    if (nchar(x1) == 37)
-      x1 = substr(x1,6,37)
     
+    # adjust output filename in case the product name has folder in the beggining
+    #x1 = x[i]
+    x1 = RemoveFolderFromFilename(x[i])
+
     # check if x[i] converted tif file exists
     # if it does, just throw some message
     # if it doesnt, try to convert, if it works nice, if it doesnt try to download the tile and process it
-    if (!file.exists(paste0(outputDir,tmpDir,x1,"_01.tif")) & !file.exists(paste0(outputDir,tmpDir,x1,"_1.tif"))) {
+    if (!file.exists(paste0(output_dir,tmp_dir,x1,"_01.tif")) & !file.exists(paste0(output_dir,tmp_dir,x1,"_1.tif"))) {
       # message
-      print(paste0("Converting HDF to TIF file ",i," from ",length(x)," -> ",x[i]))
+      print(paste0("Converting HDF to TIF file ",i," from ",length(x)," -> ",x1))
       
       # sds=T converts all files, while sd_index is only 1 file
       # dont need to specify data type for each SDS, it detects by itself
-      gdal_translate(paste0(inputDir,x[i]), dst_dataset = paste0(outputDir,tmpDir,x1,".tif"), verbose=F, sds=TRUE)
+      gdal_translate(paste0(input_dir,x[i]), dst_dataset = paste0(output_dir,tmp_dir,x1,".tif"), verbose=F, sds=TRUE)
       
       # check if file exists after converting
-      if (!file.exists(paste0(outputDir,tmpDir,x1,"_01.tif")) & !file.exists(paste0(outputDir,tmpDir,x1,"_1.tif"))) {
+      if (!file.exists(paste0(output_dir,tmp_dir,x1,"_01.tif")) & !file.exists(paste0(output_dir,tmp_dir,x1,"_1.tif"))) {
         # if it doesn't, it means that the HDF is corrupted and a download is needed
         w=0
-        while((!file.exists(paste0(outputDir,tmpDir,x1,"_01.tif")) & !file.exists(paste0(outputDir,tmpDir,x1,"_1.tif"))) & w<5) {
+        while((!file.exists(paste0(output_dir,tmp_dir,x1,"_01.tif")) & !file.exists(paste0(output_dir,tmp_dir,x1,"_1.tif"))) & w<5) {
           # message
-          print(paste0("Error while converting file ",i," from ",length(x)," -> ",x[i]))
+          print(paste0("Error while converting file ",i," from ",length(x)," -> ",x1))
           
           # download the missing file
-          downloadMissingFile(x1,inputDir, maiacFtpUrl)
+          DownloadMissingFile(x1, input_dir, maiac_ftp_url)
           
           # try to convert again
-          gdal_translate(paste0(inputDir,x1), dst_dataset = paste0(outputDir,tmpDir,x1,".tif"), verbose=F, sds=TRUE)
+          gdal_translate(paste0(input_dir,x1), dst_dataset = paste0(output_dir,tmp_dir,x1,".tif"), verbose=F, sds=TRUE)
           
           # count
           w=w+1 
         }
         
         # check if the file was extracted
-        if (file.exists(paste0(outputDir,tmpDir,x1,"_01.tif")) & file.exists(paste0(outputDir,tmpDir,x1,"_1.tif"))) {
+        if (file.exists(paste0(output_dir,tmp_dir,x1,"_01.tif")) & file.exists(paste0(output_dir,tmp_dir,x1,"_1.tif"))) {
           print(paste0("File ",x1," was downloaded and extracted with sucess. Error avoided (i hope), oh yeah!"))
         }
         
@@ -184,101 +259,65 @@ convertHDF2TIF = function(x, inputDir, outputDir, tmpDir, maiacFtpUrl) {
   # # Initiate cluster
   # cl<-makeCluster(no_cores)
   # registerDoParallel(cl)
-  # clusterExport(cl, varlist=c("singleHDF2TIF", "inputDir","outputDir"))
+  # clusterExport(cl, varlist=c("singleHDF2TIF", "input_dir","output_dir"))
   # clusterEvalQ(cl, library(gdalUtils)) # pra passar packages pros workers
   # 
   # foreach(i=1:length(x)) %dopar% {
-  #   singleHDF2TIF(x[i],inputDir,outputDir,tmpDir)
+  #   singleHDF2TIF(x[i],input_dir,output_dir,tmp_dir)
   # }
   # 
   # stopCluster(cl)
   
 }
 
-# function to check for a processed tile, if it does exist just go to the next iteration
-checkProcessedTile = function(x, inputDir, outputDir, tmpDir) {
-  #x=tile[i]
-  if (file.exists(paste0(outputDir,tmpDir,"Processed.",x,".tif"))) {
-    # message
-    print(paste0("Tile ",x," is already processed, going to the next iteration."))
-    
-    # go to the next iteration
-    return(TRUE)
-  }
-  return(FALSE)
-}
 
-# function to check for RTLS tile, and if it doesn't exist, create a "processed tile" with nan values
-checkRTLSTile = function(x, y, inputDir, outputDir, tmpDir) {
-  #x=tile[i]
-  #y=fnameParameters
-  
-  # check if x exist in y
-  existingTiles = substr(y,11,16)
-  idx = grep(x,existingTiles)
-  
-  # if RTLS tile does not exist return the nan tile and go to the next iteration
-  if (length(idx)==0) {
-    # open the nan tile
-    r = stack(paste0(inputDir,"nantile.",x,".tif"))
-    
-    # save the nan tile as the processed tile
-    writeRaster(r, filename=paste0(outputDir,tmpDir,"Processed.",tile[i],".tif"), format="GTiff", datatype='INT2S', overwrite=TRUE)
-    
-    # message
-    print(paste0("Tile ",tile[i]," did not have a RTLS file, so a nan tile was created, going to the next iteration."))
-    
-    # go to the next iteration
-    return(TRUE)
-  }
-  return(FALSE)
-}
 
-# function to load files of a specific type from the temporary output folder "outputDir"/tmp
-loadFiles = function(x, outputDir, tmpDir, type) {
+# function to load files of a specific type from the temporary output folder "output_dir"/tmp
+LoadMAIACFiles = function(raster_filename, output_dir, tmp_dir, type) {
   # name and order vector of the subdatasets
-  sdsName = c("sur_refl", "Sigma_BRFn", "Snow_Fraction", "Snow_Grain_Diameter", "Snow_Fit", "Status_QA", "sur_refl_500m", "cosSZA", "cosVZA", "RelAZ", "Scattering_Angle", "Glint_Angle", "SAZ", "VAZ", "Fv", "Fg")
-  sdsParametersName = c("Kiso", "Kvol", "Kgeo", "sur_albedo", "UpdateDay")
+  science_dataset_names = c("sur_refl", "Sigma_BRFn", "Snow_Fraction", "Snow_Grain_Diameter", "Snow_Fit", "Status_QA", "sur_refl_500m", "cosSZA", "cosVZA", "RelAZ", "Scattering_Angle", "Glint_Angle", "SAZ", "VAZ", "Fv", "Fg")
+  science_dataset_parameter_names = c("Kiso", "Kvol", "Kgeo", "sur_albedo", "UpdateDay")
   
   # identify the type
-  typeNumber = sprintf("%02d", grep(paste0("^", type, "$"), sdsName))
-  if (length(typeNumber)==0)
-    typeNumber = sprintf("%01d", grep(paste0("^", type, "$"), sdsParametersName))
-  if (length(typeNumber)==0) {
+  type_number = sprintf("%02d", grep(paste0("^", type, "$"), science_dataset_names))
+  if (length(type_number)==0)
+    type_number = sprintf("%01d", grep(paste0("^", type, "$"), science_dataset_parameter_names))
+  if (length(type_number)==0) {
     stop(paste0("Can't find file type to open: ",type))
   }
   
   # list of bricks
-  y = list()
+  raster_brick = list()
   
   # loop though files and load the files
-  for(i in 1:length(x)) {
-    y[[i]] = brick(paste0(outputDir,tmpDir,x[i],"_",typeNumber,".tif"))
+  for(i in 1:length(raster_filename)) {
+    raster_brick[[i]] = brick(paste0(output_dir,tmp_dir,raster_filename[i],"_",type_number,".tif"))
   }
   
   # return
-  return(y)
+  return(raster_brick)
 }
 
-# function to filter bad values (outside 0 and 1)
-filterBadValues = function(x, minArg, maxArg, equal) {
-  # load package
-  #require(snow)
+# function to filter bad values of a "x" variable between min and max, or equal something
+FilterBadValues = function(x, minArg, maxArg, equal) {
   
-  filterEqual = function(x) {
+  # filter function equal
+  FilterEqual = function(x) {
     x[x==equal]=NA
     return(x)
   }
   
-  filterMinMax = function(x) {
+  # filter function min/max
+  FilterMinMax = function(x) {
     x[x<minArg | x>maxArg]=NA
     return(x)
   }
   
+  # choose function based on argument passed to the function
   if (hasArg(equal)) {
-    myFun =  filterEqual
+    MyFun =  FilterEqual
   } else if (hasArg(minArg) & hasArg(maxArg)) {
-    myFun =  filterMinMax  
+    MyFun =  FilterMinMax  
   } else {
     print("Couldn't find min, max or equal argument, returning the variable without filtering.")
     return(x)
@@ -288,26 +327,12 @@ filterBadValues = function(x, minArg, maxArg, equal) {
   # for function method
   if (is.list(x)) {
     for (i in 1:length(x)) {
-      x[[i]] = myFun(x[[i]])
+      x[[i]] = MyFun(x[[i]])
     }
   } else
-    x = myFun(x)
-  #
-  
-  
-  # if (method=="lapply") {
-  #   x=lapply(x,FUN = filterBad)
-  #   y=lapply(x,FUN = filterBad)
-  # }
-  # 
-  # if (method=="for") {
-  #   # no parallel
-  #   # for each date
-  #   for (i in 1:length(x)) {
-  #     x[[i]][x[[i]]>1 | x[[i]]<0] = NA
-  #   }
-  # }
-  
+    x = MyFun(x)
+
+  # return value
   return(x)
 }
 
@@ -315,7 +340,7 @@ filterBadValues = function(x, minArg, maxArg, equal) {
 # to do: arquivo vira float depois da covnersao, transformar em outro formato? (ex. int2s)
 # transf para int2s parece que ferra os valores
 # band values are calculated ok, tested calculating one band separatedely and compared to the batch convert
-convertBRFNadir = function(BRF, FV, FG, kL, kV, kG) {
+ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG) {
   # brfBrick (12 bandas por data, 1km)
   # brfFv (1 por data, 5km)
   # brfFg (1 por data, 5km)
@@ -331,9 +356,9 @@ convertBRFNadir = function(BRF, FV, FG, kL, kV, kG) {
   # kG = rtlsKgeo
   
   # get RTLS information for the given tile of product
-  tileVec = vector()
+  tile_vec = vector()
   for (i in 1:length(kL)) {
-    tileVec[i] = substr(names(kL[[i]])[[1]],11,16)
+    tile_vec[i] = substr(names(kL[[i]])[[1]],11,16)
   }
   
   # list to put the results
@@ -352,9 +377,9 @@ convertBRFNadir = function(BRF, FV, FG, kL, kV, kG) {
     
     # identify which tile is the given i data and set the parameters to the tile
     idx = substr(names(FGi),11,16)
-    kLi = kL[[grep(idx,tileVec)]]
-    kVi = kV[[grep(idx,tileVec)]]
-    kGi = kG[[grep(idx,tileVec)]]
+    kLi = kL[[grep(idx,tile_vec)]]
+    kVi = kV[[grep(idx,tile_vec)]]
+    kGi = kG[[grep(idx,tile_vec)]]
     
     # calculate brf nadir
     # original do documento: (BRFn = BRF * (kL - 0.04578*kV - 1.10003*kG)/( kL + FV*kV + FG*kG))
@@ -362,19 +387,19 @@ convertBRFNadir = function(BRF, FV, FG, kL, kV, kG) {
   }
   
   # constrain the BRFn between 0 and 1 - possible results
-  BRFn = filterBadValues(BRFn, min=0, max=1)
+  BRFn = FilterBadValues(BRFn, min=0, max=1)
   
+  # return
   return(BRFn)
-  
 }
 
 # compute quality based on occuring QA on the raster
 # https://stevemosher.wordpress.com/2012/12/05/modis-qc-bits/
 # https://lpdaac.usgs.gov/sites/default/files/public/modis/docs/MODIS_LP_QA_Tutorial-1b.pdf
 # dataspec.doc
-computeQuality= function(x) {
+ComputeQuality = function(x) {
   # interpreting all possible QA
-  qaDF <- data.frame(Integer_Value = x,
+  qa_dataframe <- data.frame(Integer_Value = x,
                      surface = NA, #12-15
                      reserved = NA, #10-11
                      algoinit = NA, #9
@@ -386,74 +411,75 @@ computeQuality= function(x) {
   
   for(i in 1:length(x)){
     # Convert value to bit
-    AsInt <- as.integer(intToBits(qaDF$Integer_Value[i])[1:16])
+    qa_as_int = as.integer(intToBits(qa_dataframe$Integer_Value[i])[1:16])
     
     # Flip the vector
-    AsInt = AsInt[16:1]
+    qa_as_int = qa_as_int[16:1]
     
     # Bit12to15, surface change mask
-    qaDF[i,2] = paste0(AsInt[1:4], collapse="")
+    qa_dataframe[i,2] = paste0(qa_as_int[1:4], collapse="")
     
     # Bit10-11, reserved
-    qaDF[i,3] = paste0(AsInt[5:6], collapse="")
+    qa_dataframe[i,3] = paste0(qa_as_int[5:6], collapse="")
     
     # Bit9, algorithm initialize status
-    qaDF[i,4] = paste0(AsInt[7], collapse="")
+    qa_dataframe[i,4] = paste0(qa_as_int[7], collapse="")
     
     # Bit8, aot level
-    qaDF[i,5] = paste0(AsInt[8], collapse="")
+    qa_dataframe[i,5] = paste0(qa_as_int[8], collapse="")
     
     # Bit5to7, adjacency mask
-    qaDF[i,6] = paste0(AsInt[9:11], collapse="")
+    qa_dataframe[i,6] = paste0(qa_as_int[9:11], collapse="")
     
     # Bit3to4, land water snow/ice mask
-    qaDF[i,7] = paste0(AsInt[12:13], collapse="")
+    qa_dataframe[i,7] = paste0(qa_as_int[12:13], collapse="")
     
     # Bit0to2, cloud mask
-    qaDF[i,8] = paste0(AsInt[14:16], collapse="")
+    qa_dataframe[i,8] = paste0(qa_as_int[14:16], collapse="")
   }
   
-  return(qaDF)
+  # return
+  return(qa_dataframe)
 }
 
 # filter quality table, the things to filter out the image
-filterQuality= function(x) {
-  #x = qaDF
+FilterQuality= function(qa_dataframe) {
+  #qa_dataframe = qaDF
   
   # aotlevel5
-  filterList = c(5, "1") # AOT is high (> 0.6) or undefined
+  filter_list = c(5, "1") # AOT is high (> 0.6) or undefined
   
   # filter adjacency6
-  filterList = rbind(filterList,c(6, "001")) # Adjacent to cloud
-  filterList = rbind(filterList,c(6, "010")) # Surrounded  by more than 8 cloudy pixels
-  filterList = rbind(filterList,c(6, "011")) # Single cloudy pixel
+  filter_list = rbind(filter_list,c(6, "001")) # Adjacent to cloud
+  filter_list = rbind(filter_list,c(6, "010")) # Surrounded  by more than 8 cloudy pixels
+  filter_list = rbind(filter_list,c(6, "011")) # Single cloudy pixel
   
   # filter cloud8
-  filterList = rbind(filterList,c(8, "000")) # 000 ---  Undefined
-  filterList = rbind(filterList,c(8, "010")) # 010 --- Possibly Cloudy (detected by AOT filter)
-  filterList = rbind(filterList,c(8, "011")) # 011 --- Cloudy  (detected by cloud mask algorithm)
-  filterList = rbind(filterList,c(8, "101")) # 101 -- - Cloud Shadow
-  #filterList = rbind(filterList,c(8, "110")) # 110 --- hot spot of fire
-  filterList = rbind(filterList,c(8, "111")) # 111 --- Water Sediments
+  filter_list = rbind(filter_list,c(8, "000")) # 000 ---  Undefined
+  filter_list = rbind(filter_list,c(8, "010")) # 010 --- Possibly Cloudy (detected by AOT filter)
+  filter_list = rbind(filter_list,c(8, "011")) # 011 --- Cloudy  (detected by cloud mask algorithm)
+  filter_list = rbind(filter_list,c(8, "101")) # 101 -- - Cloud Shadow
+  #filter_list = rbind(filter_list,c(8, "110")) # 110 --- hot spot of fire
+  filter_list = rbind(filter_list,c(8, "111")) # 111 --- Water Sediments
   
-  # remove filterList from the quality data frame (x)
-  for (i in 1:dim(filterList)[1]) {
-    if (dim(x)[1] > 0) {
-      idx = which(x[as.numeric(filterList[i,1])]==filterList[i,2])
+  # remove filter_list from the quality data frame (qa_dataframe)
+  for (i in 1:dim(filter_list)[1]) {
+    if (dim(qa_dataframe)[1] > 0) {
+      idx = which(qa_dataframe[as.numeric(filter_list[i,1])]==filter_list[i,2])
       if (length(idx) > 0)
-        x = x[-idx,]
+        qa_dataframe = qa_dataframe[-idx,]
     }
   }
   
-  return(x)
+  return(qa_dataframe)
 }
 
 # function to create a single qa mask based on a qa raster
-createSingleQAMask = function(x) {
+CreateSingleQAMask = function(raster_file) {
   #x = qaBrick[[5]]
   
   # get unique qa values
-  uniqueQA = as.numeric(unique(x))
+  uniqueQA = as.numeric(unique(raster_file))
   
   # remove nan's
   uniqueQA = uniqueQA[!is.na(uniqueQA)]
@@ -467,61 +493,61 @@ createSingleQAMask = function(x) {
     
     # create the mask using the remaining QA, rest of values become NaN
     if (dim(qaDFFiltered)[1] > 0)
-      x = subs(x, data.frame(id=qaDFFiltered$Integer_Value, v=rep(1,length(qaDFFiltered$Integer_Value))))
+      raster_file = subs(raster_file, data.frame(id=qaDFFiltered$Integer_Value, v=rep(1,length(qaDFFiltered$Integer_Value))))
     else
-      x[]=NaN
+      raster_file[]=NaN
     
   } else {
-    x[]=NaN
+    raster_file[]=NaN
   }
   
   # return
-  return(x)
+  return(raster_file)
 }
 
-# function to create a qa mask based on a qa raster brick "x"
-createBatchQAMask = function(x) {
+# function to create a qa mask based on a qa raster brick "raster_brick"
+CreateQAMask = function(raster_brick) {
   # initiate list
-  y = list()
+  mask_brick = list()
   
   # loop throught the brick
-  for (i in 1:length(x)) {
+  for (i in 1:length(raster_brick)) {
     # message
-    print(paste0("Creating qa mask file ",i," from ",length(x)))
+    print(paste0("Creating qa mask file ",i," from ",length(raster_brick)))
     
     # add to the brick
-    y[[i]] = createSingleQAMask(x[[i]])
+    mask_brick[[i]] = CreateSingleQAMask(raster_brick[[i]])
   }
   
   # return
-  return(y)
+  return(mask_brick)
 }
 
 # function to apply the QA mask over a raster brick of the same size
-applyListMask = function(x, y) {
+ApplyMaskOnBrick = function(raster_brick, mask_brick) {
   # initiate list
-  z = list()
+  masked_raster_brick = list()
   
-  # loop throught the "x" brick
-  for (i in 1:length(x)) {
+  # loop throught the "raster_brick" brick
+  for (i in 1:length(raster_brick)) {
     # message
-    print(paste0("Applying mask in file ",i," from ",length(x)))
+    print(paste0("Applying mask in file ",i," from ",length(raster_brick)))
     
     # apply mask
-    z[[i]] = mask(x[[i]], y[[i]])
+    masked_raster_brick[[i]] = mask(raster_brick[[i]], mask_brick[[i]])
   }
   
   # return
-  return(z)
+  return(masked_raster_brick)
 }
 
 # function to create extreme azimutal angle >80 mask and apply to BRF
-filterEA = function(x, fnameProduct, outputDir, tmpDir) {
-  #cosSZA = loadFiles(fnameProduct, outputDir, tmpDir, "cosSZA")
+FilterEA = function(raster_brick, product_fname, output_dir, tmp_dir) {
+  #cosSZA = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "cosSZA")
   #cosSZA = filterBadValues(cosSZA, min=-10000, max=10000)
-  #acosSZA = lapply(cosSZA,FUN = function(x) calc(x, fun = acos))
-  SAZ = loadFiles(fnameProduct, outputDir, tmpDir, "SAZ")
-  SAZ = filterBadValues(SAZ, min=-10000, max=80)
+  #acosSZA = lapply(cosSZA,FUN = function(raster_brick) calc(raster_brick, fun = acos))
+  SAZ = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "SAZ")
+  SAZ = FilterBadValues(SAZ, min=-10000, max=80)
   
   # function to create the mask
   notna2one = function(x) {
@@ -536,29 +562,29 @@ filterEA = function(x, fnameProduct, outputDir, tmpDir) {
   SAZMask = lapply(SAZMask, FUN = disaggregate, fact=c(5,5))
   
   # apply mask
-  x = applyListMask(x, SAZMask)
+  raster_brick = ApplyMaskOnBrick(raster_brick, SAZMask)
   
   # return
-  return(x)
+  return(raster_brick)
   
 }
 
 # function to reorder the brick list per band instead of per date
-reorderBrickPerBand = function(x) {
+ReorderBrickPerBand = function(raster_brick) {
   # new list
   y = list()
   
   # loop through bands
-  for (j in 1:nlayers(x[[1]])) {
+  for (j in 1:nlayers(raster_brick[[1]])) {
     # message
-    print(paste0("Re-ordering brick per band ",j," from ",nlayers(x[[1]])))
+    print(paste0("Re-ordering brick per band ",j," from ",nlayers(raster_brick[[1]])))
     
     # create brick
     y[[j]] = brick()
     
     # loop through dates filling the y
-    for (i in 1:length(x)) {
-      y[[j]] = addLayer(y[[j]],x[[i]][[j]])
+    for (i in 1:length(raster_brick)) {
+      y[[j]] = addLayer(y[[j]],raster_brick[[i]][[j]])
     }
   }
   
@@ -567,8 +593,8 @@ reorderBrickPerBand = function(x) {
 }
 
 # function to merge the data from 8-day time span into one composite file using the median value
-calcMedianBRF8day = function(x) {
-  #x=nadirBRFBrickMaskedPerBand
+CalcMedianBRF8day = function(raster_brick_per_band) {
+  #raster_brick_per_band=nadirBRFBrickMaskedPerBand
   
   # function to calculate median and return the nearest value to the median
   # this prevents the algorithm calculating the mean of "two median values" if you dont have one single median, example:
@@ -579,7 +605,7 @@ calcMedianBRF8day = function(x) {
   medianIndex = function(x) which.min(abs(x - median(x, na.rm=T)))
   
   # function to calc the median "m" of a raster brick and return the index "idx" of the raster corresponding to that median value, also get how many observations that pixel had
-  medianAndN = function(x) {
+  CalcMedianAndN = function(x) {
     value = as.numeric(x)
     if (sum(is.na(value))==length(value)) {
       #c(NA,NA,NA) # if 3 outputs
@@ -596,85 +622,85 @@ calcMedianBRF8day = function(x) {
   }
   
   # list to put the results
-  y = list()
+  median_raster_brick_per_band = list()
   
   # load package
   #require(snow)
   
   # for each band
-  for (i in 1:length(x)) {
+  for (i in 1:length(raster_brick_per_band)) {
     # message
-    print(paste0("Calculating median per band ",i," from ",length(x)))
+    print(paste0("Calculating median per band ",i," from ",length(raster_brick_per_band)))
     
     # calc median
     # beginCluster(8)
-    # y[[i]] = clusterR(x[[i]], calc, args=list(fun=medianAndN), export=c("medianIndex"))
+    # median_raster_brick_per_band[[i]] = clusterR(raster_brick_per_band[[i]], calc, args=list(fun=medianAndN), export=c("medianIndex"))
     # endCluster()
-    y[[i]] = calc(x[[i]], fun=medianAndN)
+    median_raster_brick_per_band[[i]] = calc(raster_brick_per_band[[i]], fun=CalcMedianAndN)
   }
   
   # only bands
-  y=brick(c(lapply(y,FUN=subset, subset=1),y[[1]][[2]]))
-  names(y)=c("band1","band2","band3","band4","band5","band6","band7","band8","samples")
+  median_raster_brick_per_band=brick(c(lapply(median_raster_brick_per_band,FUN=subset, subset=1),median_raster_brick_per_band[[1]][[2]]))
+  names(median_raster_brick_per_band)=c("band1","band2","band3","band4","band5","band6","band7","band8","samples")
   
-  return(y)
+  return(median_raster_brick_per_band)
 }
 
 # function to write the processed file to disk while applying a factor of 10000 to bands 1-8 to reduce disk space usage
-saveProcessedTileComposite = function(medianBRF, outputDir, compositeFilename, tile, year, day) {
+SaveProcessedTileComposite = function(medianBRF, output_dir, composite_fname, tile, year, day) {
   # factors for each band
   factors = c(10000,10000,10000,10000,10000,10000,10000,10000,1)
   
   # apply factors
-  b=brick(lapply(c(1:9),FUN=function(x) round(unstack(medianBRF)[[x]]*factors[x],0)))
+  b = brick(lapply(c(1:9),FUN=function(x) round(unstack(medianBRF)[[x]]*factors[x],0)))
   
   # write to file
-  writeRaster(b, filename=paste0(outputDir,compositeFilename,".",tile,".",year, day[8],".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
-  #writeRaster(medianBRF, filename=paste0(outputDir,tmpDir,"Processed.",tile,".tif"), format="GTiff", overwrite=TRUE)
+  writeRaster(b, filename=paste0(output_dir,composite_fname,".",tile,".",year, day[8],".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
+  #writeRaster(medianBRF, filename=paste0(output_dir,tmp_dir,"Processed.",tile,".tif"), format="GTiff", overwrite=TRUE)
   
   # message
-  print(paste0("Tile composite was saved: ",compositeFilename,".",tile,".",year, day[8],".tif"))
+  print(paste0("Tile composite was saved: ",composite_fname,".",tile,".",year, day[8],".tif"))
 }
 
 # function to write the processed file to disk while applying a factor of 10000 to bands 1-8 to reduce disk space usage
-saveProcessedTile = function(medianBRF, outputDir, tmpDir, tile) {
+SaveProcessedTile = function(medianBRF, output_dir, tmp_dir, tile) {
   # factors for each band
   factors = c(10000,10000,10000,10000,10000,10000,10000,10000,1)
   
   # apply factors
-  b=brick(lapply(c(1:9),FUN=function(x) round(unstack(medianBRF)[[x]]*factors[x],0)))
+  b = brick(lapply(c(1:9),FUN=function(x) round(unstack(medianBRF)[[x]]*factors[x],0)))
   
   # write to file
-  writeRaster(b, filename=paste0(outputDir,tmpDir,"Processed.",tile,".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
-  #writeRaster(medianBRF, filename=paste0(outputDir,tmpDir,"Processed.",tile,".tif"), format="GTiff", overwrite=TRUE)
+  writeRaster(b, filename=paste0(output_dir,tmp_dir,"Processed.",tile,".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
+  #writeRaster(medianBRF, filename=paste0(output_dir,tmp_dir,"Processed.",tile,".tif"), format="GTiff", overwrite=TRUE)
   
   # message
   print(paste0("Tile was saved: ",tile))
 }
 
 # function to mosaic given tiles from a list of bricks "x"
-mosaicTilesAndSave = function(x, outputDir, tmpDir, year, day) {
+MosaicTilesAndSave = function(x, output_dir, tmp_dir, year, day) {
   #x = processedList
   
   # message
   print("Mosaicking the tiles...")
   
   # mosaic and save files
-  m=mosaic_rasters(paste0(outputDir,tmpDir,x), dst_dataset = paste0(outputDir,compositeFilename,"_",year,day[8],".tif"), verbose=F, output_Raster = TRUE, ot="Int16", co = c("COMPRESS=DEFLATE","PREDICTOR=2","ZLEVEL=3"))
+  m=mosaic_rasters(paste0(output_dir,tmp_dir,x), dst_dataset = paste0(output_dir,composite_fname,"_",year,day[8],".tif"), verbose=F, output_Raster = TRUE, ot="Int16", co = c("COMPRESS=DEFLATE","PREDICTOR=2","ZLEVEL=3"))
   
   # return
   return(m)
 }
 
 # function to reproject composites
-reprojectComposite = function(x, outputDir, tmpDir, year, day, outputRaster) {
+ReprojectComposite = function(x, output_dir, tmp_dir, year, day, output_raster) {
   
   # South America region has Sinusoid projection, with central longitude 58W.
   # projecao lat/lon: "+init=epsg:4326 +proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
   # projecao original do maiac: "+proj=sinu +lon_0=-3323155211.758775 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
   # projecao ajustada do maiac com longitude central da SouthAmerica -58W (sugestão Yujie Wang): "+proj=sinu +lon_0=-58 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
-  gdalwarp(paste0(outputDir,compositeFilename,"_",year,day[8],".tif"),
-           dstfile = paste0(outputDir,compositeFilename,"_LatLon_",year,day[8],".tif"),
+  gdalwarp(paste0(output_dir,composite_fname,"_",year,day[8],".tif"),
+           dstfile = paste0(output_dir,composite_fname,"_LatLon_",year,day[8],".tif"),
            t_srs = "+init=epsg:4326 +proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0",
            s_srs = "+proj=sinu +lon_0=-58 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs",
            ot="Int16",
