@@ -57,27 +57,25 @@ isTileProcessed = function(tile, input_dir, output_dir, tmp_dir) {
 }
 
 # function to check if RTLS tile is available, if it does return TRUE, if it doesn't exist, create a "processed tile" with nan values
-IsRTLSTileAvailable = function(parameter_fname, tile, input_dir, output_dir, tmp_dir) {
-  #x=tile[i]
-  #y=parameter_fname
-  
+IsDataAvailable = function(fname, tile, year, day, nan_tiles_dir, output_dir, obs) {
   # set escape variable default
   result = FALSE
   
-  # check if x exist in y
-  existing_tiles = substr(parameter_fname, 11, 16)
-  idx = grep(tile, existing_tiles)
-  
-  # if RTLS tile does not exist return the nan tile and go to the next iteration
-  if (length(idx)==0) {
-    # open the nan tile
-    r = stack(paste0(nan_tiles_dir,"nantile.",tile,".tif"))
+  # if the variable is empty
+  if (length(fname)==0) {
+    # log the bad file
+    line = paste(obs, year, day[8], tile, sep=",")
+    write(line, file=paste0(output_dir,"missing_files.txt"), append=TRUE)
     
+    # load a brick of 9 nan bands (equivalent to band1-8 and number of pixels)
+    b = brick(lapply(c(1:9), FUN=function(x) raster(paste0(nan_tiles_dir,"nantile.",tile,".tif"))))
+
     # save the nan tile as the processed tile
-    writeRaster(r, filename=paste0(output_dir, tmp_dir, "Processed.", tile, ".tif"), format="GTiff", datatype='INT2S', overwrite=TRUE)
+    writeRaster(b, filename=paste0(output_dir, composite_fname, ".", tile, ".", year, day[8], ".tif"), format="GTiff", datatype='INT2S', overwrite=TRUE)
     
     # message
-    print(paste0("Tile ",tile," did not have a RTLS file, so a nan tile was used instead, going to the next iteration."))
+    #print(paste0("Tile ",tile," did not have a RTLS file, so a nan tile was used instead, going to the next iteration."))
+    print(paste0("Couldn't find ", fname, " for tile ", tile, ", year ", year, ", and day ", day[8],". Going to next iteration..."))
     
     # go to the next iteration
     result = TRUE
@@ -113,7 +111,7 @@ CreateNanTiles = function(input_dir, latlon_tiles_dir, nan_tiles_dir, tile) {
 # function to get filenames of each 8-day product or parameters files from a product "x", from a input directory "input_dir", of a respective "tile", "year" and day vector "day"
 GetFilenameVec = function(product, input_dir, tile, year, day) {
   # create combinatios of product, tile, year and day
-  combinations = expand.grid(product,paste0(".",tile,"."),year,sprintf("%03s",day))
+  combinations = expand.grid(product, paste0(".",tile,"."), year, sprintf("%03s",day))
   
   # merge the combinations
   combinations = paste0(combinations$Var1, combinations$Var2, combinations$Var3, combinations$Var4)
@@ -126,6 +124,7 @@ GetFilenameVec = function(product, input_dir, tile, year, day) {
 }
 
 # function to check for existing RTLS files and filter the BRF products by it, and report the missing RTLS
+# TODO: remove this function? this function seems to be obsolete now that we process by tile
 FilterProductTilesbyRTLSTiles = function(product_fname, parameter_fname, output_dir) {
   #x=product_fname
   #y=parameter_fname
@@ -133,6 +132,14 @@ FilterProductTilesbyRTLSTiles = function(product_fname, parameter_fname, output_
   # check which tiles exist in RTLS
   existing_tiles = substr(parameter_fname, 11, 16)
   
+  # find the string MAIAC inside the product string
+  pos = gregexpr('MAIAC', parameter_fname)[[1]]
+  if (any(pos) > 0) {
+    existing_tiles = substr(parameter_fname,pos[length(pos)]+10,pos[length(pos)]+15)
+  } else {
+    stop(paste0("Problem in FilterProductTilesbyRTLSTiles function, can't find MAIAC in the fname."))
+  } 
+
   # check which tiles doesn't exist in RTLS but exist in product
   missing_tiles = unique(substr(product_fname[-grep(paste0(existing_tiles, collapse="|"), product_fname)],11,16))
   
@@ -206,7 +213,7 @@ ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url) {
     
     # adjust output filename in case the product name has folder in the beggining
     #x1 = x[i]
-    x1 = RemoveFolderFromFilename(x[i])
+    x1 = RemoveDirectoryFromFilenameVec(x[i])
 
     # check if x[i] converted tif file exists
     # if it does, just throw some message
@@ -671,7 +678,7 @@ SaveProcessedTile = function(medianBRF, output_dir, tmp_dir, tile) {
   b = brick(lapply(c(1:9),FUN=function(x) round(unstack(medianBRF)[[x]]*factors[x],0)))
   
   # write to file
-  writeRaster(b, filename=paste0(output_dir,tmp_dir,"Processed.",tile,".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
+  writeRaster(b, filename=paste0(output_dir, "Processed.", tile, ".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
   #writeRaster(medianBRF, filename=paste0(output_dir,tmp_dir,"Processed.",tile,".tif"), format="GTiff", overwrite=TRUE)
   
   # message

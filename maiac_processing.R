@@ -84,7 +84,7 @@ is_qa_filter = FALSE
 is_ea_filter = FALSE
 
 # parameters
-MEASURE_RUN_TIME = TRUE
+MEASURE_RUN_TIME_ENABLED = TRUE
 PARALLEL_PROCESS_ENABLED = TRUE
 
 
@@ -114,28 +114,31 @@ if (MEASURE_RUN_TIME_ENABLED)
   start.time = Sys.time()
 
 # Calculate the number of cores minus 1
-if (PARALLEL_PROCESS_ENABLED)
+if (PARALLEL_PROCESS_ENABLED) {
+  # detect number of cores
   no_cores = detectCores() - 1
-
-# Initiate cluster
-cl = makeCluster(no_cores)
-registerDoParallel(cl)
-#clusterExport(cl, varlist=c("singleHDF2TIF", "input_dir","output_dir"))
-clusterEvalQ(cl, library(raster)) # pra passar packages pros workers
-clusterEvalQ(cl, library(gdalUtils)) # pra passar packages pros workers
-clusterEvalQ(cl, library(rgdal)) # pra passar packages pros workers
-clusterEvalQ(cl, library(RCurl)) # pra passar packages pros workers
+  
+  # Initiate cluster
+  cl = makeCluster(no_cores)
+  registerDoParallel(cl)
+  
+  # send packages to clusters
+  clusterEvalQ(cl, library(raster)) # pra passar packages pros workers
+  clusterEvalQ(cl, library(gdalUtils)) # pra passar packages pros workers
+  clusterEvalQ(cl, library(rgdal)) # pra passar packages pros workers
+  clusterEvalQ(cl, library(RCurl)) # pra passar packages pros workers
+}
 
 # Loop year
 for (k in 1:17) {
   #k=14
   year = 1999+k
   
-  # send variables to cluster
-  clusterExport(cl, varlist=as.vector(c(lsf.str(), ls())))
+  # send variables to clusters
+  if (PARALLEL_PROCESS_ENABLED)
+    clusterExport(cl, varlist=as.vector(c(lsf.str(), ls())))
   
   # Loop 8-day composite
-  # parallel
   foreach(j = 1:dim(eight_day_mat)[1]) %dopar% {
   #for (j in 1:dim(eight_day_mat)[1]) {
     #j=28
@@ -158,14 +161,15 @@ for (k in 1:17) {
     product_fname = GetFilenameVec(product, input_dir, tile, year, day)
     parameter_fname = GetFilenameVec(parameters, input_dir, tile, year, day)
     
-    # test if product_fname is different than 0
-    if (length(product_fname)==0) {
+    # if no brf or rtls for given day, year, tile, return nan output, log the information and go to next iteration
+    if (IsDataAvailable(product_fname, tile, year, day, nan_tiles_dir, output_dir, obs="brf") | IsDataAvailable(parameter_fname, tile, year, day, nan_tiles_dir, output_dir, obs="rtls")) {
       unlink(file.path(output_dir, tmp_dir), recursive=TRUE)
       return(0)
     }
     
     # filter product names by only the product tiles/dates that have RTLS tiles
-    product_fname = FilterProductTilesbyRTLSTiles(product_fname, parameter_fname, output_dir)
+    # TODO: remove this function? this function seems to be obsolete now that we process by tile
+    #product_fname = FilterProductTilesbyRTLSTiles(product_fname, parameter_fname, output_dir)
     
     # convert the files from hdf to tif, <NO PARALELL>
     # time no parallel: 57 min (366 files)
@@ -177,15 +181,8 @@ for (k in 1:17) {
     product_fname = RemoveDirectoryFromFilenameVec(product_fname)
     parameter_fname = RemoveDirectoryFromFilenameVec(parameter_fname)
     
-    # check if the RTLS exists for this tile, if false return a empty (nan) raster as the processed i tile and go to the next iteration
-    if (IsRTLSTileAvailable(parameter_fname, tile, input_dir, output_dir, tmp_dir)) {
-      unlink(file.path(output_dir, tmp_dir), recursive=TRUE)
-      return(0)
-      #next
-    }
-    
     # load files needed for BRF normalization
-    brf_reflectance = LoadFiles(product_fname, output_dir, tmp_dir, "sur_refl")
+    brf_reflectance = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "sur_refl")
     brf_fv = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "Fv")
     brf_fg = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "Fg")
     rtls_kiso = LoadMAIACFiles(parameter_fname, output_dir, tmp_dir, "Kiso")
