@@ -427,8 +427,12 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG) {
     # identify which tile is the given i data and set the parameters to the tile
     img_day = as.numeric(substr(names(FGi),22,24))
     
-    # get rtls days that are lower than image day, and get always the lowest rlts day (index 1)
-    idx = which(img_day <= rtls_day_vec)[1]
+    # get rtls days that are lower than image day, and that are near the image day (12 days is an arbitrary number), get always the lowest rlts day (index 1)
+    idx = which(img_day <= rtls_day_vec & abs(rtls_day_vec - img_day) <= 12)[1]
+    
+    # if there is no rtls available, get the closest one
+    if (is.na(idx))
+      idx = which(min(abs(img_day - rtls_day_vec)) == abs(img_day - rtls_day_vec))
     
     # get values
     kLi = kL[[idx]]
