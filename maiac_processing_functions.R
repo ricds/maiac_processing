@@ -397,17 +397,17 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG) {
   # rtlsKvol (8 bandas, 1km)
   # rtlsKgeo (8 bandas, 1km)
   
-  # BRF = brfBrick
-  # FV = brfFv
-  # FG = brfFg
-  # kL = rtlsKiso
-  # kV = rtlsKvol
-  # kG = rtlsKgeo
+  # BRF = brf_reflectance
+  # FV = brf_fv
+  # FG = brf_fg
+  # kL = rtls_kiso
+  # kV = rtls_kvol
+  # kG = rtls_kgeo
   
-  # get RTLS information for the given tile of product
-  tile_vec = vector()
+  # retrieve RTLS day
+  rtls_day_vec = vector()
   for (i in 1:length(kL)) {
-    tile_vec[i] = substr(names(kL[[i]])[[1]],11,16)
+    rtls_day_vec[i] = as.numeric(substr(names(kL[[i]])[[1]],22,24))
   }
   
   # list to put the results
@@ -425,10 +425,15 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG) {
     FGi = disaggregate(FG[[i]], fact=c(5,5))
     
     # identify which tile is the given i data and set the parameters to the tile
-    idx = substr(names(FGi),11,16)
-    kLi = kL[[grep(idx,tile_vec)]]
-    kVi = kV[[grep(idx,tile_vec)]]
-    kGi = kG[[grep(idx,tile_vec)]]
+    img_day = as.numeric(substr(names(FGi),22,24))
+    
+    # get rtls days that are lower than image day, and get always the lowest rlts day (index 1)
+    idx = which(img_day <= rtls_day_vec)[1]
+    
+    # get values
+    kLi = kL[[idx]]
+    kVi = kV[[idx]]
+    kGi = kG[[idx]]
     
     # calculate brf nadir
     # original do documento: (BRFn = BRF * (kL - 0.04578*kV - 1.10003*kG)/( kL + FV*kV + FG*kG))
