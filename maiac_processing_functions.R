@@ -192,6 +192,7 @@ DownloadMissingFile = function(fname, directory, maiac_ftp_url) {
 }
 
 # remove no_char_eliminar digits from the beggining of product_string in case number of letters of product_string is equal to no_char_limiar
+# TODO: remove? probably obsolete
 RemoveDirectoryFromFilenameVec = function(product_string) {
   # find the string MAIAC inside the product string
   pos = gregexpr('MAIAC', product_string[1])[[1]]
@@ -236,7 +237,7 @@ ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url) {
           print(paste0("Error while converting file ",i," from ",length(x)," -> ",x1))
           
           # download the missing file
-          DownloadMissingFile(x1, input_dir, maiac_ftp_url)
+          DownloadMissingFile(x1, paste0(input_dir,dirname(x[i])), maiac_ftp_url)
           
           # try to convert again
           gdal_translate(paste0(input_dir,x1), dst_dataset = paste0(output_dir,tmp_dir,x1,".tif"), verbose=F, sds=TRUE)
