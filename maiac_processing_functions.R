@@ -57,12 +57,22 @@ isTileProcessed = function(tile, input_dir, output_dir, tmp_dir) {
 }
 
 # function to check if RTLS tile is available, if it does return TRUE, if it doesn't exist, create a "processed tile" with nan values
-IsDataAvailable = function(fname, tile, year, day, nan_tiles_dir, output_dir, obs) {
+IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs, maiac_ftp_url) {
   # set escape variable default
-  result = FALSE
+  result = TRUE
   
+  # retrieve data available
+  fname = GetFilenameVec(type, input_dir, tile, year, day)
+  
+  # if file is a rtls and it doesn't exist, try to download it before assuming it doesn't exist
+  if (length(fname) == 0 & obs == "rtls") {
+    DownloadMissingFile(paste0(type,".",tile,".",year,day[8],".hdf"), paste0(input_dir,year,"/"), maiac_ftp_url)
+    fname = GetFilenameVec(type, input_dir, tile, year, day)
+  }
+    
   # if the variable is empty
   if (length(fname)==0) {
+
     # log the bad file
     line = paste(obs, year, day[8], tile, sep=",")
     write(line, file=paste0(output_dir,"missing_files.txt"), append=TRUE)
@@ -78,8 +88,10 @@ IsDataAvailable = function(fname, tile, year, day, nan_tiles_dir, output_dir, ob
     print(paste0("Couldn't find ", fname, " for tile ", tile, ", year ", year, ", and day ", day[8],". Going to next iteration..."))
     
     # go to the next iteration
-    result = TRUE
+    result = FALSE
   }
+  
+  # return
   return(result)
 }
 
@@ -185,6 +197,10 @@ DownloadMissingFile = function(fname, directory, maiac_ftp_url) {
   # save the file on the disk
   if (class(tmp_file) == "try-error") {
     print(paste0("Could not download the missing file: ",fname))
+    
+    # log
+    line = fname
+    write(line, file=paste0(output_dir,"download_fail.txt"), append=TRUE)
   } else {
     print(paste0("Download sucess: ",fname))
     writeBin(tmp_file, con=paste0(directory,fname))

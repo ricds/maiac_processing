@@ -149,7 +149,10 @@ for (k in 1:17) {
     # check if 8-day tile composite processed file already exist, otherwise just skip to next
     if (IsTileCompositeProcessed(composite_fname, tile, year, day, output_dir))
       return(0)
-      #next
+    
+    # if no brf or rtls is available for given day, year, tile, try to download it (in case of rtls), or return nan output, log the information and go to next iteration
+    if (!IsDataAvailable(product, tile, year, day, nan_tiles_dir, output_dir, obs="brf", maiac_ftp_url) | !IsDataAvailable(parameters, tile, year, day, nan_tiles_dir, output_dir, obs="rtls", maiac_ftp_url))
+      return(0)
     
     # set temporary directory
     tmp_dir = paste0("tmp",year,day[8],"/")
@@ -160,13 +163,7 @@ for (k in 1:17) {
     # get filenames of each 8-day product and parameters files
     product_fname = GetFilenameVec(product, input_dir, tile, year, day)
     parameter_fname = GetFilenameVec(parameters, input_dir, tile, year, day)
-    
-    # if no brf or rtls for given day, year, tile, return nan output, log the information and go to next iteration
-    if (IsDataAvailable(product_fname, tile, year, day, nan_tiles_dir, output_dir, obs="brf") | IsDataAvailable(parameter_fname, tile, year, day, nan_tiles_dir, output_dir, obs="rtls")) {
-      unlink(file.path(output_dir, tmp_dir), recursive=TRUE)
-      return(0)
-    }
-    
+
     # filter product names by only the product tiles/dates that have RTLS tiles
     # TODO: remove this function? this function seems to be obsolete now that we process by tile
     #product_fname = FilterProductTilesbyRTLSTiles(product_fname, parameter_fname, output_dir)
