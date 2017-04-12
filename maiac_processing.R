@@ -129,116 +129,109 @@ if (PARALLEL_PROCESS_ENABLED) {
   clusterEvalQ(cl, library(RCurl)) # pra passar packages pros workers
 }
 
-# Loop year
-for (k in 1:17) {
-  #k=14
-  year = 1999+k
-  
-  # send variables to clusters
-  if (PARALLEL_PROCESS_ENABLED)
-    clusterExport(cl, varlist=as.vector(c(lsf.str(), ls())))
-  
-  # Loop 8-day composite
-  foreach(j = 1:dim(eight_day_mat)[1]) %dopar% {
-  #for (j in 1:dim(eight_day_mat)[1]) {
-    #j=28
-    
-    # get the day vector
-    day = eight_day_mat[j,]
-    
-    # check if 8-day tile composite processed file already exist, otherwise just skip to next
-    if (IsTileCompositeProcessed(composite_fname, tile, year, day, output_dir))
-      return(0)
-    
-    # if no brf or rtls is available for given day, year, tile, try to download it (in case of rtls), or return nan output, log the information and go to next iteration
-    if (!IsDataAvailable(product, tile, year, day, nan_tiles_dir, output_dir, obs="brf", maiac_ftp_url) | !IsDataAvailable(parameters, tile, year, day, nan_tiles_dir, output_dir, obs="rtls", maiac_ftp_url))
-      return(0)
-    
-    # set temporary directory
-    tmp_dir = paste0("tmp",year,day[8],"/")
-    
-    # create temporary directory
-    dir.create(file.path(output_dir, tmp_dir), showWarnings = FALSE)
-    
-    # get filenames of each 8-day product and parameters files
-    product_fname = GetFilenameVec(product, input_dir, tile, year, day)
-    parameter_fname = GetFilenameVec(parameters, input_dir, tile, year, day)
+# create year/day matrix
+year_day_mat = expand.grid(c(1:45), c(2000:2016))
+year_day_mat = cbind(year_day_mat$Var1, year_day_mat$Var2)
 
-    # filter product names by only the product tiles/dates that have RTLS tiles
-    # TODO: remove this function? this function seems to be obsolete now that we process by tile
-    #product_fname = FilterProductTilesbyRTLSTiles(product_fname, parameter_fname, output_dir)
-    
-    # convert the files from hdf to tif, <NO PARALELL>
-    # time no parallel: 57 min (366 files)
-    # time parallel: estimado 60% do tempo 34 min (366 files), deu 33% -> 19 min (366 files)
-    ConvertHDF2TIF(product_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url)
-    ConvertHDF2TIF(parameter_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url)
-    
-    # remove directory from filenames, return only the "filenames".hdf
-    #product_fname = RemoveDirectoryFromFilenameVec(product_fname)
-    #parameter_fname = RemoveDirectoryFromFilenameVec(parameter_fname)
-    product_fname = basename(product_fname)
-    parameter_fname = basename(parameter_fname)
-    
-    # load files needed for BRF normalization
-    brf_reflectance = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "sur_refl")
-    brf_fv = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "Fv")
-    brf_fg = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "Fg")
-    rtls_kiso = LoadMAIACFiles(parameter_fname, output_dir, tmp_dir, "Kiso")
-    rtls_kvol = LoadMAIACFiles(parameter_fname, output_dir, tmp_dir, "Kvol")
-    rtls_kgeo = LoadMAIACFiles(parameter_fname, output_dir, tmp_dir, "Kgeo")
-    
-    # filter bad values or fill values
-    # Fv and Fg: -99999 is a fill value, should be removed
-    brf_fv = FilterBadValues(brf_fv, equal=-99999)
-    brf_fg = FilterBadValues(brf_fg, equal=-99999)
-    #brf_reflectance = FilterBadValues(brf_reflectance, min=0, max=1) # not needed i think, if you filter the final result it's ok
-    
-    # convert BRF to Nadir
-    nadir_brf_reflectance = ConvertBRFNadir(brf_reflectance, brf_fv, brf_fg, rtls_kiso, rtls_kvol, rtls_kgeo)
-    rm(list = c("brf_reflectance", "brf_fv", "brf_fg", "rtls_kiso", "rtls_kvol", "rtls_kgeo"))
-    
-    # create and apply QA filter mask following a set of rules in function filterQuality()
-    # remove pixels such as: possibly cloud, cloud adjacent, cloud shadow, etc.
-    if (is_qa_filter) {
-      qa_brick = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "Status_QA")
-      qa_mask = CreateQAMask(qa_brick)
-      nadir_brf_reflectance = ApplyMaskOnBrick(nadir_brf_reflectance, qa_mask)
-      rm(list = c("qa_brick","qa_mask"))
-    }
-    
-    # create and apply a mask based on extreme sun angles >80
-    if (is_ea_filter) {
-      nadir_brf_reflectance = FilterEA(nadir_brf_reflectance, product_fname, output_dir, tmp_dir)
-    }
-    
-    # put the bands together so its easier to calc the median
-    nadir_brf_reflectance_per_band = ReorderBrickPerBand(nadir_brf_reflectance)
-    rm(list = c("nadir_brf_reflectance"))
-    
-    # create median value BRF 8-day composite from the BRF brick and masked QA brick, the output is 9 rasters (1-8 band, and no_samples)
-    median_brf_reflectance = CalcMedianBRF8day(nadir_brf_reflectance_per_band)
-    rm(list = c("nadir_brf_reflectance_per_band"))
-    
-    # plot brfnadir to file to verify it later
-    png(filename=paste0(tile_preview_dir,"fig_",composite_fname,"_",year,day[8],".png"), type="cairo", units="cm", width=15, height=15, pointsize=10, res=300)
-    par(oma=c(4,4,4,4))
-    plot(median_brf_reflectance)
-    dev.off()
-    
-    # save the tile median in the composite directory
-    SaveProcessedTileComposite(median_brf_reflectance, output_dir, composite_fname, tile, year, day)
-    rm(list = c("median_brf_reflectance"))
-    
-    # delete temporary directory
-    unlink(file.path(output_dir, tmp_dir), recursive=TRUE)
+# send variables to clusters
+if (PARALLEL_PROCESS_ENABLED)
+  clusterExport(cl, varlist=as.vector(c(lsf.str(), ls())))
 
-    # End Loop 8-day composite
+# Loop 8-day composite
+foreach(j = 1:dim(year_day_mat)[1]) %dopar% {
+  #j=28
+  
+  # get year
+  year = year_day_mat[j,2]
+  
+  # get the day vector
+  day = eight_day_mat[year_day_mat[j,1],]
+  
+  # check if 8-day tile composite processed file already exist, otherwise just skip to next
+  if (IsTileCompositeProcessed(composite_fname, tile, year, day, output_dir))
     return(0)
+  
+  # if no brf or rtls is available for given day, year, tile, try to download it (in case of rtls), or return nan output, log the information and go to next iteration
+  if (!IsDataAvailable(product, tile, year, day, nan_tiles_dir, output_dir, obs="brf", maiac_ftp_url) | !IsDataAvailable(parameters, tile, year, day, nan_tiles_dir, output_dir, obs="rtls", maiac_ftp_url))
+    return(0)
+  
+  # set temporary directory
+  tmp_dir = paste0("tmp",year,day[length(day)],"/")
+  
+  # create temporary directory
+  dir.create(file.path(output_dir, tmp_dir), showWarnings = FALSE)
+  
+  # get filenames of each 8-day product and parameters files
+  product_fname = GetFilenameVec(product, input_dir, tile, year, day)
+  parameter_fname = GetFilenameVec(parameters, input_dir, tile, year, day)
+  
+  # filter product names by only the product tiles/dates that have RTLS tiles
+  # TODO: remove this function? this function seems to be obsolete now that we process by tile
+  #product_fname = FilterProductTilesbyRTLSTiles(product_fname, parameter_fname, output_dir)
+  
+  # convert the files from hdf to tif
+  ConvertHDF2TIF(product_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url)
+  ConvertHDF2TIF(parameter_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url)
+  
+  # remove directory from filenames, return only the "filenames".hdf
+  product_fname = basename(product_fname)
+  parameter_fname = basename(parameter_fname)
+  
+  # load files needed for BRF normalization
+  brf_reflectance = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "sur_refl")
+  brf_fv = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "Fv")
+  brf_fg = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "Fg")
+  rtls_kiso = LoadMAIACFiles(parameter_fname, output_dir, tmp_dir, "Kiso")
+  rtls_kvol = LoadMAIACFiles(parameter_fname, output_dir, tmp_dir, "Kvol")
+  rtls_kgeo = LoadMAIACFiles(parameter_fname, output_dir, tmp_dir, "Kgeo")
+  
+  # filter bad values or fill values
+  # Fv and Fg: -99999 is a fill value, should be removed
+  brf_fv = FilterBadValues(brf_fv, equal=-99999)
+  brf_fg = FilterBadValues(brf_fg, equal=-99999)
+  #brf_reflectance = FilterBadValues(brf_reflectance, min=0, max=1) # not needed i think, if you filter the final result it's ok
+  
+  # convert BRF to Nadir
+  nadir_brf_reflectance = ConvertBRFNadir(brf_reflectance, brf_fv, brf_fg, rtls_kiso, rtls_kvol, rtls_kgeo)
+  rm(list = c("brf_reflectance", "brf_fv", "brf_fg", "rtls_kiso", "rtls_kvol", "rtls_kgeo"))
+  
+  # create and apply QA filter mask following a set of rules in function filterQuality()
+  # remove pixels such as: possibly cloud, cloud adjacent, cloud shadow, etc.
+  if (is_qa_filter) {
+    qa_brick = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "Status_QA")
+    qa_mask = CreateQAMask(qa_brick)
+    nadir_brf_reflectance = ApplyMaskOnBrick(nadir_brf_reflectance, qa_mask)
+    rm(list = c("qa_brick","qa_mask"))
   }
   
+  # create and apply a mask based on extreme sun angles >80
+  if (is_ea_filter) {
+    nadir_brf_reflectance = FilterEA(nadir_brf_reflectance, product_fname, output_dir, tmp_dir)
+  }
   
-  # End of loop year
+  # put the bands together so its easier to calc the median
+  nadir_brf_reflectance_per_band = ReorderBrickPerBand(nadir_brf_reflectance)
+  rm(list = c("nadir_brf_reflectance"))
+  
+  # create median value BRF 8-day composite from the BRF brick and masked QA brick, the output is 9 rasters (1-8 band, and no_samples)
+  median_brf_reflectance = CalcMedianBRF8day(nadir_brf_reflectance_per_band)
+  rm(list = c("nadir_brf_reflectance_per_band"))
+  
+  # plot brfnadir to file to verify it later
+  png(filename=paste0(tile_preview_dir,"fig_",composite_fname,"_",year,day[length(day)],".png"), type="cairo", units="cm", width=15, height=15, pointsize=10, res=300)
+  par(oma=c(4,4,4,4))
+  plot(median_brf_reflectance)
+  dev.off()
+  
+  # save the tile median in the composite directory
+  SaveProcessedTileComposite(median_brf_reflectance, output_dir, composite_fname, tile, year, day)
+  rm(list = c("median_brf_reflectance"))
+  
+  # delete temporary directory
+  unlink(file.path(output_dir, tmp_dir), recursive=TRUE)
+  
+  # End Loop 8-day composite
+  return(0)
 }
 
 # stop cluster
