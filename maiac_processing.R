@@ -38,8 +38,8 @@ library(gdalUtils)  #install.packages("gdalUtils")
 library(rgdal)  #install.packages("rgdal")
 library(foreach)  #install.packages("foreach") # click yes if asked
 library(RCurl)  #install.packages("RCurl")
-#library(doParallel)  #install.packages("doParallel")
-library(doSNOW)  #install.packages("doSNOW")
+library(doParallel)  #install.packages("doParallel")
+#library(doRedis)  #install.packages("doRedis")
 
 
 # CONFIG ------------------------------------------------------------------
@@ -84,6 +84,7 @@ composite_no = 16
 # parameters
 MEASURE_RUN_TIME_ENABLED = TRUE
 PARALLEL_PROCESS_ENABLED = TRUE
+REDIS_ENABLED = FALSE
 
 
 # SEQUENCE FOR SEPARATE TILE PROCESSING -------------------------------------------------------------------
@@ -107,6 +108,14 @@ dir.create(file.path(tile_preview_dir), showWarnings = FALSE)
 if (MEASURE_RUN_TIME_ENABLED)
   start.time = Sys.time()
 
+if (REDIS_ENABLED) {
+  options('redis:num'=TRUE)
+  registerDoRedis(queue="jobs", host="192.168.0.10")
+  startLocalWorkers(n=7, queue="jobs", host="192.168.0.10")
+  print(getDoParWorkers())
+  #removeQueue('jobs')
+}
+
 # Calculate the number of cores minus 1
 if (PARALLEL_PROCESS_ENABLED) {
   # detect number of cores
@@ -114,22 +123,23 @@ if (PARALLEL_PROCESS_ENABLED) {
   
   # Initiate cluster
   cl = makeCluster(no_cores, outfile="")
-  registerDoSNOW(cl)
-  #registerDoParallel(cl)
-  
+  registerDoParallel(cl)
+
   # send packages to clusters
-  clusterEvalQ(cl, library(raster)) # pra passar packages pros workers
-  clusterEvalQ(cl, library(gdalUtils)) # pra passar packages pros workers
-  clusterEvalQ(cl, library(rgdal)) # pra passar packages pros workers
-  clusterEvalQ(cl, library(RCurl)) # pra passar packages pros workers
+  #clusterEvalQ(cl, library(raster)) # pra passar packages pros workers
+  #clusterEvalQ(cl, library(gdalUtils)) # pra passar packages pros workers
+  #clusterEvalQ(cl, library(rgdal)) # pra passar packages pros workers
+  #clusterEvalQ(cl, library(RCurl)) # pra passar packages pros workers
 }
 
 # send variables to clusters
-if (PARALLEL_PROCESS_ENABLED)
-  clusterExport(cl, varlist=as.vector(c(lsf.str(), ls())))
+#if (PARALLEL_PROCESS_ENABLED)
+#  clusterExport(cl, varlist=as.vector(c(lsf.str(), ls())))
 
 # Loop through each day and year to process the composites
-foreach(j = 1:dim(loop_mat)[1]) %dopar% {
+# testar .errorhandling="pass" (passar o objeto de erro) ou "remove" (para ignorar)
+foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"), .export=ls(.GlobalEnv)) %dopar% {
+#foreach(j = 1:dim(loop_mat)[1]) %dopar% {
   #j=144
   
   # get input_dir from loop_mat
@@ -238,6 +248,11 @@ foreach(j = 1:dim(loop_mat)[1]) %dopar% {
 if (PARALLEL_PROCESS_ENABLED) {
   stopCluster(cl)
   closeAllConnections()
+}
+
+if (REDIS_ENABLED) {
+  removeQueue("jobs", host="192.168.0.10")
+  redisClose()
 }
 
 # message
