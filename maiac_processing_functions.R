@@ -116,7 +116,7 @@ IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs
 }
 
 # function to create nan tiles, to use in case the time series dont have data for one tile on a given date
-CreateNanTiles = function(input_dir, latlon_tiles_dir, nan_tiles_dir, tile) {
+CreateNanTiles = function(tile, nan_tiles_dir, latlon_tiles_dir) {
   # check if nan tile already exists
   if (!file.exists(paste0(nan_tiles_dir,"nantile",".",tile,".tif"))) {
     # create tmpnanfiles directory

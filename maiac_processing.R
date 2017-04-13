@@ -103,9 +103,6 @@ loop_mat = CreateLoopMat(day_mat, composite_no, input_dir_vec, tile_vec)
 # create preview directory if it doesnt exist
 dir.create(file.path(tile_preview_dir), showWarnings = FALSE)
 
-# create nan rasters for every tile in case it is needed
-CreateNanTiles(input_dir, latlon_tiles_dir, nan_tiles_dir, tile)
-
 # measure time
 if (MEASURE_RUN_TIME_ENABLED)
   start.time = Sys.time()
@@ -146,6 +143,9 @@ foreach(j = 1:dim(loop_mat)[1]) %dopar% {
   
   # get the day vector from loop_mat
   day = day_mat[as.numeric(loop_mat[j,1]),]
+  
+  # create nan rasters for tile in case it is needed
+  CreateNanTiles(tile, nan_tiles_dir, latlon_tiles_dir)
   
   # check if 8-day tile composite processed file already exist, otherwise just skip to next
   if (IsTileCompositeProcessed(composite_fname, tile, year, day, output_dir))
