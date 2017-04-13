@@ -12,9 +12,9 @@ IsCompositeProcessed = function(composite_fname, year, day, output_dir) {
   result = FALSE
   
   # check if composite exists
-  if (file.exists(paste0(output_dir,composite_fname,"_",year,day[8],".tif"))) {
+  if (file.exists(paste0(output_dir,composite_fname,"_",year,day[length(day)],".tif"))) {
     # message
-    print(paste0("Composite ",paste0(composite_fname,"_",year,day[8],".tif")," is already processed, going to the next iteration."))
+    print(paste0("Composite ",paste0(composite_fname,"_",year,day[length(day)],".tif")," is already processed, going to the next iteration."))
     
     # go to the next iteration
     result = TRUE
@@ -30,9 +30,9 @@ IsTileCompositeProcessed = function(composite_fname, tile, year, day, output_dir
   result = FALSE
   
   # check if tile composite exists
-  if (file.exists(paste0(output_dir,composite_fname,".",tile,".",year,day[8],".tif"))) {
+  if (file.exists(paste0(output_dir,composite_fname,".",tile,".",year,day[length(day)],".tif"))) {
     # message
-    print(paste0("Tile composite ",paste0(composite_fname,".",tile,".",year,day[8],".tif")," is already processed, going to the next iteration."))
+    print(paste0("Tile composite ",paste0(composite_fname,".",tile,".",year,day[length(day)],".tif")," is already processed, going to the next iteration."))
     
     # go to the next iteration
     result = TRUE
@@ -61,12 +61,32 @@ IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs
   # set escape variable default
   result = TRUE
   
+  # get days that should have rtls
+  rtls_days_theoric = seq(8,360,8)
+  
   # retrieve data available
   fname = GetFilenameVec(type, input_dir, tile, year, day)
   
   # if file is a rtls and it doesn't exist, try to download it before assuming it doesn't exist
   if (length(fname) == 0 & obs == "rtls") {
-    DownloadMissingFile(paste0(type,".",tile,".",year,day[8],".hdf"), paste0(input_dir,year,"/"), maiac_ftp_url)
+    # find which rtls files should exist
+    day_match = match(as.numeric(day), rtls_days_theoric)
+    
+    # get its index
+    day_idx = day_match[!is.na(day_match)]
+    
+    # get its value
+    rtls_match = rtls_days_theoric[day_idx]
+    
+    # transform it back to char with 3 digits
+    rtls_match = sprintf("%03d", rtls_match)
+    
+    # try to download the missing rtls
+    for (i in 1:length(rtls_match)) {
+      DownloadMissingFile(paste0(type,".",tile,".",year,rtls_match[i],".hdf"), paste0(input_dir,year,"/"), maiac_ftp_url)
+    }
+    
+    # retrieve fname again
     fname = GetFilenameVec(type, input_dir, tile, year, day)
   }
     
@@ -74,18 +94,18 @@ IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs
   if (length(fname)==0) {
 
     # log the bad file
-    line = paste(obs, year, day[8], tile, sep=",")
+    line = paste(obs, year, day[length(day)], tile, sep=",")
     write(line, file=paste0(output_dir,"missing_files.txt"), append=TRUE)
     
     # load a brick of 9 nan bands (equivalent to band1-8 and number of pixels)
     b = brick(lapply(c(1:9), FUN=function(x) raster(paste0(nan_tiles_dir,"nantile.",tile,".tif"))))
 
     # save the nan tile as the processed tile
-    writeRaster(b, filename=paste0(output_dir, composite_fname, ".", tile, ".", year, day[8], ".tif"), format="GTiff", datatype='INT2S', overwrite=TRUE)
+    writeRaster(b, filename=paste0(output_dir, composite_fname, ".", tile, ".", year, day[length(day)], ".tif"), format="GTiff", datatype='INT2S', overwrite=TRUE)
     
     # message
     #print(paste0("Tile ",tile," did not have a RTLS file, so a nan tile was used instead, going to the next iteration."))
-    print(paste0("Couldn't find ", fname, " for tile ", tile, ", year ", year, ", and day ", day[8],". Going to next iteration..."))
+    print(paste0("Couldn't find ", fname, " for tile ", tile, ", year ", year, ", and day ", day[length(day)],". Going to next iteration..."))
     
     # go to the next iteration
     result = FALSE
@@ -389,7 +409,7 @@ FilterBadValues = function(x, minArg, maxArg, equal) {
 # to do: arquivo vira float depois da covnersao, transformar em outro formato? (ex. int2s)
 # transf para int2s parece que ferra os valores
 # band values are calculated ok, tested calculating one band separatedely and compared to the batch convert
-ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG) {
+ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year) {
   # brfBrick (12 bandas por data, 1km)
   # brfFv (1 por data, 5km)
   # brfFg (1 por data, 5km)
@@ -433,7 +453,7 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG) {
     # if there is no rtls available, get the closest one and log it
     if (is.na(idx)) {
       idx = which(min(abs(img_day - rtls_day_vec)) == abs(img_day - rtls_day_vec))
-      line = paste0("Image day: ", img_day,", RTLS day: ", rtls_day_vec[idx])
+      line = paste0("Tile: ", tile,", Year: ", year,", Image day: ", img_day,", RTLS day: ", rtls_day_vec[idx])
       write(line,file=paste0(output_dir, "processed_closest_rtls.txt"), append=TRUE)
     }
     
@@ -717,11 +737,11 @@ SaveProcessedTileComposite = function(medianBRF, output_dir, composite_fname, ti
   b = brick(lapply(c(1:9),FUN=function(x) round(unstack(medianBRF)[[x]]*factors[x],0)))
   
   # write to file
-  writeRaster(b, filename=paste0(output_dir,composite_fname,".",tile,".",year, day[8],".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
+  writeRaster(b, filename=paste0(output_dir,composite_fname,".",tile,".",year, day[length(day)],".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
   #writeRaster(medianBRF, filename=paste0(output_dir,tmp_dir,"Processed.",tile,".tif"), format="GTiff", overwrite=TRUE)
   
   # message
-  print(paste0("Tile composite was saved: ",composite_fname,".",tile,".",year, day[8],".tif"))
+  print(paste0("Tile composite was saved: ",composite_fname,".",tile,".",year, day[length(day)],".tif"))
 }
 
 # function to write the processed file to disk while applying a factor of 10000 to bands 1-8 to reduce disk space usage
@@ -748,7 +768,7 @@ MosaicTilesAndSave = function(x, output_dir, tmp_dir, year, day) {
   print("Mosaicking the tiles...")
   
   # mosaic and save files
-  m=mosaic_rasters(paste0(output_dir,tmp_dir,x), dst_dataset = paste0(output_dir,composite_fname,"_",year,day[8],".tif"), verbose=F, output_Raster = TRUE, ot="Int16", co = c("COMPRESS=DEFLATE","PREDICTOR=2","ZLEVEL=3"))
+  m=mosaic_rasters(paste0(output_dir,tmp_dir,x), dst_dataset = paste0(output_dir,composite_fname,"_",year,day[length(day)],".tif"), verbose=F, output_Raster = TRUE, ot="Int16", co = c("COMPRESS=DEFLATE","PREDICTOR=2","ZLEVEL=3"))
   
   # return
   return(m)
@@ -761,8 +781,8 @@ ReprojectComposite = function(x, output_dir, tmp_dir, year, day, output_raster) 
   # projecao lat/lon: "+init=epsg:4326 +proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
   # projecao original do maiac: "+proj=sinu +lon_0=-3323155211.758775 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
   # projecao ajustada do maiac com longitude central da SouthAmerica -58W (sugestão Yujie Wang): "+proj=sinu +lon_0=-58 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
-  gdalwarp(paste0(output_dir,composite_fname,"_",year,day[8],".tif"),
-           dstfile = paste0(output_dir,composite_fname,"_LatLon_",year,day[8],".tif"),
+  gdalwarp(paste0(output_dir,composite_fname,"_",year,day[length(day)],".tif"),
+           dstfile = paste0(output_dir,composite_fname,"_LatLon_",year,day[length(day)],".tif"),
            t_srs = "+init=epsg:4326 +proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0",
            s_srs = "+proj=sinu +lon_0=-58 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs",
            ot="Int16",
