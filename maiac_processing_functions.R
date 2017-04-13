@@ -14,7 +14,7 @@ IsCompositeProcessed = function(composite_fname, year, day, output_dir) {
   # check if composite exists
   if (file.exists(paste0(output_dir,composite_fname,"_",year,day[length(day)],".tif"))) {
     # message
-    print(paste0("Composite ",paste0(composite_fname,"_",year,day[length(day)],".tif")," is already processed, going to the next iteration."))
+    print(paste0(Sys.time(), ": Composite ",paste0(composite_fname,"_",year,day[length(day)],".tif")," is already processed, going to the next iteration."))
     
     # go to the next iteration
     result = TRUE
@@ -32,7 +32,7 @@ IsTileCompositeProcessed = function(composite_fname, tile, year, day, output_dir
   # check if tile composite exists
   if (file.exists(paste0(output_dir,composite_fname,".",tile,".",year,day[length(day)],".tif"))) {
     # message
-    print(paste0("Tile composite ",paste0(composite_fname,".",tile,".",year,day[length(day)],".tif")," is already processed, going to the next iteration."))
+    print(paste0(Sys.time(), ": Tile composite ",paste0(composite_fname,".",tile,".",year,day[length(day)],".tif")," is already processed, going to the next iteration."))
     
     # go to the next iteration
     result = TRUE
@@ -48,7 +48,7 @@ isTileProcessed = function(tile, input_dir, output_dir, tmp_dir) {
   #x=tile[i]
   if (file.exists(paste0(output_dir,tmp_dir,"Processed.",x,".tif"))) {
     # message
-    print(paste0("Tile ",x," is already processed, going to the next iteration."))
+    print(paste0(Sys.time(), ": Tile ",x," is already processed, going to the next iteration."))
     
     # go to the next iteration
     result = TRUE
@@ -104,8 +104,7 @@ IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs
     writeRaster(b, filename=paste0(output_dir, composite_fname, ".", tile, ".", year, day[length(day)], ".tif"), format="GTiff", datatype='INT2S', overwrite=TRUE)
     
     # message
-    #print(paste0("Tile ",tile," did not have a RTLS file, so a nan tile was used instead, going to the next iteration."))
-    print(paste0("Couldn't find ", fname, " for tile ", tile, ", year ", year, ", and day ", day[length(day)],". Going to next iteration..."))
+    print(paste0(Sys.time(), ": Couldn't find ", fname, " for tile ", tile, ", year ", year, ", and day ", day[length(day)],". Going to next iteration..."))
     
     # go to the next iteration
     result = FALSE
@@ -169,7 +168,8 @@ FilterProductTilesbyRTLSTiles = function(product_fname, parameter_fname, output_
   if (any(pos) > 0) {
     existing_tiles = substr(parameter_fname,pos[length(pos)]+10,pos[length(pos)]+15)
   } else {
-    stop(paste0("Problem in FilterProductTilesbyRTLSTiles function, can't find MAIAC in the fname."))
+    # message
+    stop(paste0(Sys.time(), ": Problem in FilterProductTilesbyRTLSTiles function, can't find MAIAC in the fname."))
   } 
 
   # check which tiles doesn't exist in RTLS but exist in product
@@ -194,7 +194,7 @@ DownloadMissingFile = function(fname, directory, maiac_ftp_url) {
   # example: ftp://maiac@dataportal.nccs.nasa.gov/DataRelease/SouthAmerica/h00v00/2000/MAIACRTLS.h00v00.2000096.hdf
   
   # message
-  print(paste0("Trying to download the missing file: ",fname))
+  print(paste0(Sys.time(), ": Trying to download the missing file: ",fname))
   
   # file url
   tile = substr(fname,11,16)
@@ -207,7 +207,7 @@ DownloadMissingFile = function(fname, directory, maiac_ftp_url) {
   # download loop!
   w=0
   while(w <= 15 && class(tmp_file) == "try-error") {
-    print(paste0("getBinaryURL error, trying again in ",10+w," seconds... try number ",w+1))
+    print(paste0(Sys.time(), ": getBinaryURL error, trying again in ",10+w," seconds... try number ",w+1))
     Sys.sleep(10+w)
     tmp_file = try(getBinaryURL(file_url, verbose = F, username="maiac"))
     closeAllConnections()
@@ -216,13 +216,13 @@ DownloadMissingFile = function(fname, directory, maiac_ftp_url) {
   
   # save the file on the disk
   if (class(tmp_file) == "try-error") {
-    print(paste0("Could not download the missing file: ",fname))
+    print(paste0(Sys.time(), ": Could not download the missing file: ",fname))
     
     # log
     line = fname
     write(line, file=paste0(output_dir,"download_fail.txt"), append=TRUE)
   } else {
-    print(paste0("Download sucess: ",fname))
+    print(paste0(Sys.time(), ": Download sucess: ",fname))
     writeBin(tmp_file, con=paste0(directory,fname))
   }
 }
@@ -263,7 +263,7 @@ ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url) {
     if (any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",suf16,".tif"))) & any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",suf5,".tif")))) {
     #if (!file.exists(paste0(output_dir,tmp_dir,x1,"_01.tif")) & !file.exists(paste0(output_dir,tmp_dir,x1,"_1.tif"))) {
       # message
-      print(paste0("Converting HDF to TIF file ",i," from ",length(x)," -> ",x1))
+      print(paste0(Sys.time(), ": Converting HDF to TIF file ",i," from ",length(x)," -> ",x1))
       
       # try to convert for the first time
       gdal_translate(paste0(input_dir,x[i]), dst_dataset = paste0(output_dir,tmp_dir,x1,".tif"), verbose=F, sds=TRUE)
@@ -293,7 +293,7 @@ ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url) {
         try_count_download = 0
         while (any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",suf16,".tif"))) & any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",suf5,".tif"))) & try_count_download < 5) {
           # message
-          print(paste0("Error while converting file ",i," from ",length(x)," -> ",x1))
+          print(paste0(Sys.time(), ": Error while converting file ",i," from ",length(x)," -> ",x1))
           
           # download the missing file
           DownloadMissingFile(x1, paste0(input_dir,dirname(x[i]),"/"), maiac_ftp_url)
@@ -308,13 +308,13 @@ ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url) {
         # check if the file was extracted
         #if (file.exists(paste0(output_dir,tmp_dir,x1,"_01.tif")) & file.exists(paste0(output_dir,tmp_dir,x1,"_1.tif"))) {
         if (all(file.exists(paste0(output_dir,tmp_dir,x1,"_",suf16,".tif"))) | all(file.exists(paste0(output_dir,tmp_dir,x1,"_",suf5,".tif")))) {
-          print(paste0("File ",x1," was downloaded and extracted with sucess. Error avoided (i hope), oh yeah!"))
+          print(paste0(Sys.time(), ": File ",x1," was downloaded and extracted with sucess. Error avoided (i hope), oh yeah!"))
         }
         
       }
       
     } else {
-      print(paste0("File ",i," from ",length(x)," is already converted to tif -> ",x1))
+      print(paste0(Sys.time(), ": File ",i," from ",length(x)," is already converted to tif -> ",x1))
     }
   }
   
@@ -352,7 +352,8 @@ LoadMAIACFiles = function(raster_filename, output_dir, tmp_dir, type) {
   if (length(type_number)==0)
     type_number = sprintf("%01d", grep(paste0("^", type, "$"), science_dataset_parameter_names))
   if (length(type_number)==0) {
-    stop(paste0("Can't find file type to open: ",type))
+    # message
+    stop(paste0(Sys.time(), ": Can't find file type to open: ",type))
   }
   
   # list of bricks
@@ -388,7 +389,7 @@ FilterBadValues = function(x, minArg, maxArg, equal) {
   } else if (hasArg(minArg) & hasArg(maxArg)) {
     MyFun =  FilterMinMax  
   } else {
-    print("Couldn't find min, max or equal argument, returning the variable without filtering.")
+    print(paste0(Sys.time(), ": Couldn't find min, max or equal argument, returning the variable without filtering."))
     return(x)
   }
   
@@ -437,7 +438,7 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year) {
   #i=1
   for (i in 1:length(BRF)) {
     # message
-    print(paste0("normalizing brf iteration ",i," from ",length(BRF)))
+    print(paste0(Sys.time(), ": Normalizing brf iteration ",i," from ",length(BRF)))
     
     # set parameters, interpolate the 5km to 1 km by nearest neighbor
     BRFi = subset(BRF[[i]],1:8)
@@ -594,7 +595,7 @@ CreateQAMask = function(raster_brick) {
   # loop throught the brick
   for (i in 1:length(raster_brick)) {
     # message
-    print(paste0("Creating qa mask file ",i," from ",length(raster_brick)))
+    print(paste0(Sys.time(), ": Creating qa mask file ",i," from ",length(raster_brick)))
     
     # add to the brick
     mask_brick[[i]] = CreateSingleQAMask(raster_brick[[i]])
@@ -612,7 +613,7 @@ ApplyMaskOnBrick = function(raster_brick, mask_brick) {
   # loop throught the "raster_brick" brick
   for (i in 1:length(raster_brick)) {
     # message
-    print(paste0("Applying mask in file ",i," from ",length(raster_brick)))
+    print(paste0(Sys.time(), ": Applying mask in file ",i," from ",length(raster_brick)))
     
     # apply mask
     masked_raster_brick[[i]] = mask(raster_brick[[i]], mask_brick[[i]])
@@ -658,7 +659,7 @@ ReorderBrickPerBand = function(raster_brick) {
   # loop through bands
   for (j in 1:nlayers(raster_brick[[1]])) {
     # message
-    print(paste0("Re-ordering brick per band ",j," from ",nlayers(raster_brick[[1]])))
+    print(paste0(Sys.time(), ": Re-ordering brick per band ",j," from ",nlayers(raster_brick[[1]])))
     
     # create brick
     y[[j]] = brick()
@@ -711,7 +712,7 @@ CalcMedianBRF = function(raster_brick_per_band) {
   # for each band
   for (i in 1:length(raster_brick_per_band)) {
     # message
-    print(paste0("Calculating median per band ",i," from ",length(raster_brick_per_band)))
+    print(paste0(Sys.time(), ": Calculating median per band ",i," from ",length(raster_brick_per_band)))
     
     # calc median
     # beginCluster(8)
@@ -741,7 +742,7 @@ SaveProcessedTileComposite = function(medianBRF, output_dir, composite_fname, ti
   #writeRaster(medianBRF, filename=paste0(output_dir,tmp_dir,"Processed.",tile,".tif"), format="GTiff", overwrite=TRUE)
   
   # message
-  print(paste0("Tile composite was saved: ",composite_fname,".",tile,".",year, day[length(day)],".tif"))
+  print(paste0(Sys.time(), ": Tile composite was saved: ",composite_fname,".",tile,".",year, day[length(day)],".tif"))
 }
 
 # function to write the processed file to disk while applying a factor of 10000 to bands 1-8 to reduce disk space usage
@@ -757,7 +758,7 @@ SaveProcessedTile = function(medianBRF, output_dir, tmp_dir, tile) {
   #writeRaster(medianBRF, filename=paste0(output_dir,tmp_dir,"Processed.",tile,".tif"), format="GTiff", overwrite=TRUE)
   
   # message
-  print(paste0("Tile was saved: ",tile))
+  print(paste0(Sys.time(), ": Tile was saved: ",tile))
 }
 
 # function to mosaic given tiles from a list of bricks "x"

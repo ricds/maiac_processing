@@ -259,7 +259,7 @@ if (REDIS_ENABLED) {
 }
 
 # message
-print("All tile composites processed. Good job!")
+print(paste0(Sys.time(), ": All tile composites processed. Good job!"))
 
 # measure run time
 if (MEASURE_RUN_TIME_ENABLED) {
