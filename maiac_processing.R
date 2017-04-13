@@ -47,6 +47,9 @@ library(doParallel)  #install.packages("doParallel")
 # functions filename with full directory
 functions_fname = "D:/2_Projects/1_Author/4_MAIAC_process/maiac_processing/maiac_processing_functions.R"
 
+# log file path, this file will contain the text output from each core running, useful for debugging
+log_fname = "D:/1_Dataset/1_MODIS/1_MCD43A4_SurfRef16/MAIAC_ProcessedTiles/log.txt"
+
 # output directory, the one to export the processed tiles
 output_dir = "D:/1_Dataset/1_MODIS/1_MCD43A4_SurfRef16/MAIAC_ProcessedTiles/"
 
@@ -119,10 +122,10 @@ if (REDIS_ENABLED) {
 # Calculate the number of cores minus 1
 if (PARALLEL_PROCESS_ENABLED) {
   # detect number of cores
-  no_cores = detectCores() - 1
+  no_cores = detectCores()
   
   # Initiate cluster
-  cl = makeCluster(no_cores, outfile="")
+  cl = parallel::makeCluster(no_cores, outfile=log_fname)
   registerDoParallel(cl)
 
   # send packages to clusters
