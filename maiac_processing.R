@@ -38,7 +38,8 @@ library(gdalUtils)  #install.packages("gdalUtils")
 library(rgdal)  #install.packages("rgdal")
 library(foreach)  #install.packages("foreach") # click yes if asked
 library(RCurl)  #install.packages("RCurl")
-library(doParallel)  #install.packages("doParallel")
+#library(doParallel)  #install.packages("doParallel")
+library(doSNOW)  #install.packages("doSNOW")
 
 
 # CONFIG ------------------------------------------------------------------
@@ -118,8 +119,9 @@ if (PARALLEL_PROCESS_ENABLED) {
   no_cores = detectCores() - 1
   
   # Initiate cluster
-  cl = makeCluster(no_cores)
-  registerDoParallel(cl)
+  cl = makeCluster(no_cores, outfile="")
+  registerDoSNOW(cl)
+  #registerDoParallel(cl)
   
   # send packages to clusters
   clusterEvalQ(cl, library(raster)) # pra passar packages pros workers
