@@ -48,19 +48,19 @@ library(doParallel)  #install.packages("doParallel")
 functions_fname = "D:/2_Projects/1_Author/4_MAIAC_process/maiac_processing/maiac_processing_functions.R"
 
 # log file path, this file will contain the text output from each core running, useful for debugging
-log_fname = "D:/1_Dataset/1_MODIS/1_MCD43A4_SurfRef16/MAIAC_ProcessedTiles/log.txt"
+log_fname = "D:/_MAIAC/MAIAC_ProcessedTiles/log.txt"
 
 # output directory, the one to export the processed tiles
-output_dir = "D:/1_Dataset/1_MODIS/1_MCD43A4_SurfRef16/MAIAC_ProcessedTiles/"
+output_dir = "D:/_MAIAC/MAIAC_ProcessedTiles/"
 
 # latlon tiles directory, the one where latlon tiles are stored
-latlon_tiles_dir = "D:/1_Dataset/1_MODIS/1_MCD43A4_SurfRef16/MAIAC_LatLonTiles/"
+latlon_tiles_dir = "D:/_MAIAC/MAIAC_LatLonTiles/"
 
 # nan tiles directory, the one where nan tiles are stored, to use in case of non-existant RTLS file for processing
-nan_tiles_dir = "D:/1_Dataset/1_MODIS/1_MCD43A4_SurfRef16/MAIAC_NanTiles/"
+nan_tiles_dir = "D:/_MAIAC/MAIAC_NanTiles/"
 
 # preview directory, the one to to export preview images "png"
-tile_preview_dir = "D:/1_Dataset/1_MODIS/1_MCD43A4_SurfRef16/MAIAC_PreviewTiles/"
+tile_preview_dir = "D:/_MAIAC/MAIAC_PreviewTiles/"
 
 # input_dir_list, the one where the raw files are
 input_dir_vec = c("D:/h00v01/")
@@ -122,7 +122,7 @@ if (REDIS_ENABLED) {
 # Calculate the number of cores minus 1
 if (PARALLEL_PROCESS_ENABLED) {
   # detect number of cores
-  no_cores = detectCores()
+  no_cores = detectCores() - 1
   
   # Initiate cluster
   cl = parallel::makeCluster(no_cores, outfile=log_fname)
