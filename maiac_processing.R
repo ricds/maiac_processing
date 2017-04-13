@@ -59,12 +59,11 @@ nan_tiles_dir = "D:/1_Dataset/1_MODIS/1_MCD43A4_SurfRef16/MAIAC_NanTiles/"
 # preview directory, the one to to export preview images "png"
 tile_preview_dir = "D:/1_Dataset/1_MODIS/1_MCD43A4_SurfRef16/MAIAC_PreviewTiles/"
 
-# input_dir, the one where the raw files are
-input_dir = "D:/h00v01/"
+# input_dir_list, the one where the raw files are
+input_dir_vec = c("D:/h00v01/")
 
 # tile to process
-# TODO: one per time is working, more than one not sure
-tile = c("h00v01")
+tile_vec = c("h00v01")
 
 # url to download maiac files for south america, in case of needed
 maiac_ftp_url = "ftp://maiac@dataportal.nccs.nasa.gov/DataRelease/SouthAmerica/"
@@ -99,7 +98,7 @@ composite_fname = CreateCompositeName(composite_no, product, is_qa_filter, is_ea
 day_mat = CreateDayMatrix(composite_no)
 
 # create loop matrix containing all the information to iterate
-loop_mat = CreateLoopMat(loop_mat, day_mat, composite_no)
+loop_mat = CreateLoopMat(day_mat, composite_no, input_dir_vec, tile_vec)
 
 # create preview directory if it doesnt exist
 dir.create(file.path(tile_preview_dir), showWarnings = FALSE)
@@ -136,11 +135,17 @@ if (PARALLEL_PROCESS_ENABLED)
 foreach(j = 1:dim(loop_mat)[1]) %dopar% {
   #j=144
   
-  # get year
-  year = loop_mat[j,2]
+  # get input_dir from loop_mat
+  input_dir = as.character(loop_mat[j,3])
   
-  # get the day vector
-  day = day_mat[loop_mat[j,1],]
+  # get tile from loop_mat
+  tile = as.character(loop_mat[j,4])
+  
+  # get year from loop_mat
+  year = as.numeric(loop_mat[j,2])
+  
+  # get the day vector from loop_mat
+  day = day_mat[as.numeric(loop_mat[j,1]),]
   
   # check if 8-day tile composite processed file already exist, otherwise just skip to next
   if (IsTileCompositeProcessed(composite_fname, tile, year, day, output_dir))

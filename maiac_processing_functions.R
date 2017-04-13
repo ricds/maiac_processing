@@ -833,7 +833,7 @@ CreateCompositeName = function(composite_no, product, is_qa_filter, is_ea_filter
 }
 
 # function to create loop mat, filtering the start and end dates from loop_mat, depending on composite_no
-CreateLoopMat = function(loop_mat, day_mat, composite_no) {
+CreateLoopMat = function(day_mat, composite_no, input_dir_vec, tile_vec) {
   # find the lines in day_mat of first and last composite
   # 64 2000 and 240 2016
   idx_2000 = which(sprintf("%03d", 64) == day_mat, arr.ind = TRUE)[1]
@@ -854,7 +854,20 @@ CreateLoopMat = function(loop_mat, day_mat, composite_no) {
   mat3 = cbind(mat3$Var1, mat3$Var2)
   
   # merge mats
-  loop_mat = rbind(mat1, mat2, mat3)
+  day_year = rbind(mat1, mat2, mat3)
+
+  # initiate the variable that will contain both day, year and dir, tile
+  loop_mat = c()
+  
+  # populate the matrix
+  for (i in 1:length(input_dir_vec)) {
+    # create repetitions
+    dir_rep = rep(input_dir_vec[i],dim(day_year)[1])
+    tile_rep = rep(tile_vec[i],dim(day_year)[1])
+    
+    # bind the matrices
+    loop_mat = rbind(loop_mat,cbind(day_year,dir_rep,tile_rep))
+  }
   
   # return
   return(loop_mat)
