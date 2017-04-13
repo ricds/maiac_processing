@@ -69,11 +69,6 @@ tile = c("h00v01")
 # url to download maiac files for south america, in case of needed
 maiac_ftp_url = "ftp://maiac@dataportal.nccs.nasa.gov/DataRelease/SouthAmerica/"
 
-# process date range
-# TODO: apply this somehow
-process_from_date = "04-08-2016"
-process_to_date = "11-08-2016"
-
 # product name MAIACTBRF, MAIACABRF, MAIACRTLS
 product = c("MAIACTBRF","MAIACABRF")
 parameters = "MAIACRTLS"
@@ -103,6 +98,9 @@ composite_fname = CreateCompositeName(composite_no, product, is_qa_filter, is_ea
 # create matrix of days on each composite
 day_mat = CreateDayMatrix(composite_no)
 
+# create loop matrix containing all the information to iterate
+loop_mat = CreateLoopMat(loop_mat, day_mat, composite_no)
+
 # create preview directory if it doesnt exist
 dir.create(file.path(tile_preview_dir), showWarnings = FALSE)
 
@@ -129,10 +127,6 @@ if (PARALLEL_PROCESS_ENABLED) {
   clusterEvalQ(cl, library(rgdal)) # pra passar packages pros workers
   clusterEvalQ(cl, library(RCurl)) # pra passar packages pros workers
 }
-
-# create loop matrix containing all the information to iterate
-loop_mat = expand.grid(c(1:dim(day_mat)[1]), c(2000:2016))
-loop_mat = cbind(loop_mat$Var1, loop_mat$Var2)
 
 # send variables to clusters
 if (PARALLEL_PROCESS_ENABLED)

@@ -831,3 +831,31 @@ CreateCompositeName = function(composite_no, product, is_qa_filter, is_ea_filter
   #return
   return(composite_fname)
 }
+
+# function to create loop mat, filtering the start and end dates from loop_mat, depending on composite_no
+CreateLoopMat = function(loop_mat, day_mat, composite_no) {
+  # find the lines in day_mat of first and last composite
+  # 64 2000 and 240 2016
+  idx_2000 = which(sprintf("%03d", 64) == day_mat, arr.ind = TRUE)[1]
+  idx_2016 = which(sprintf("%03d", 240) == day_mat, arr.ind = TRUE)[1]
+  
+  # old method
+  # loop_mat = expand.grid(c(1:dim(day_mat)[1]), c(2000:2016))
+  # loop_mat = cbind(loop_mat$Var1, loop_mat$Var2)
+  
+  # create the loop mat excluding the start and end index
+  mat1 = expand.grid(c(idx_2000:dim(day_mat)[1]), 2000)
+  mat2 = expand.grid(c(1:dim(day_mat)[1]), c(2001:2015))
+  mat3 = expand.grid(c(1:idx_2016), 2016)
+  
+  # merge mat columns
+  mat1 = cbind(mat1$Var1, mat1$Var2)
+  mat2 = cbind(mat2$Var1, mat2$Var2)
+  mat3 = cbind(mat3$Var1, mat3$Var2)
+  
+  # merge mats
+  loop_mat = rbind(mat1, mat2, mat3)
+  
+  # return
+  return(loop_mat)
+}
