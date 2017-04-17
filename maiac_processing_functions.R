@@ -682,24 +682,31 @@ ReorderBrickPerBand = function(raster_brick) {
 
 # function to merge the data from 8-day time span into one composite file using the median value
 CalcMedianBRF = function(raster_brick_per_band) {
-  #raster_brick_per_band=nadirBRFBrickMaskedPerBand
-  
+  #raster_brick_per_band = nadir_brf_reflectance_per_band
+
   # function to calculate median and return the nearest value to the median
   # this prevents the algorithm calculating the mean of "two median values" if you dont have one single median, example:
   # values = c(0.0338, 0.0172, 0.0368, NA, 0.0230, NA, NA, NA, NA, NA, NA)
   # median equlals to 0.0284, a value that doesn't exist, it's a mean of 0.0338 and 0.0230
   # now, the difference between values and median = c(0.0054, 0.0112, 0.0084, NA, 0.0054, NA, NA, NA, NA, NA, NA)
   # an existing median can be either 0.0338 or 0.023, but i choose arbitrarily to get the first value it find in the vector
-  medianIndex = function(x) which.min(abs(x - median(x, na.rm=T)))
-  
+  #medianIndex = function(x) which.min(abs(x - median(x, na.rm=T)))
+    
   # function to calc the median "m" of a raster brick and return the index "idx" of the raster corresponding to that median value, also get how many observations that pixel had
+  # about the median calc: it calculate median and return the nearest value to the median
+  # this prevents the algorithm calculating the mean of "two median values" if you dont have one single median, example:
+  # values = c(0.0338, 0.0172, 0.0368, NA, 0.0230, NA, NA, NA, NA, NA, NA)
+  # median equlals to 0.0284, a value that doesn't exist, it's a mean of 0.0338 and 0.0230
+  # now, the difference between values and median = c(0.0054, 0.0112, 0.0084, NA, 0.0054, NA, NA, NA, NA, NA, NA)
+  # an existing median can be either 0.0338 or 0.023, but i choose arbitrarily to get the first value it find in the vector
   CalcMedianAndN = function(x) {
     value = as.numeric(x)
     if (sum(is.na(value))==length(value)) {
       #c(NA,NA,NA) # if 3 outputs
       c(NA,NA)  # if 2 outputs
     } else {
-      idx = medianIndex(value)
+      #idx = medianIndex(value)
+      idx = which.min(abs(value - median(value, na.rm=T)))
       m = value[idx]
       n = sum(!is.na(value))
       
@@ -711,26 +718,27 @@ CalcMedianBRF = function(raster_brick_per_band) {
   
   # list to put the results
   median_raster_brick_per_band = list()
-  
-  # load package
+
   #require(snow)
   
   # for each band
   for (i in 1:length(raster_brick_per_band)) {
     # message
     print(paste0(Sys.time(), ": Calculating median per band ",i," from ",length(raster_brick_per_band)))
-    
+
     # calc median
-    # beginCluster(8)
-    # median_raster_brick_per_band[[i]] = clusterR(raster_brick_per_band[[i]], calc, args=list(fun=medianAndN), export=c("medianIndex"))
-    # endCluster()
     median_raster_brick_per_band[[i]] = calc(raster_brick_per_band[[i]], fun=CalcMedianAndN)
+
+    #beginCluster(no_cores)
+    #median_raster_brick_per_band[[i]] = clusterR(raster_brick_per_band[[i]], calc, args=list(fun=CalcMedianAndN))
+    #endCluster()
   }
   
   # only bands
   median_raster_brick_per_band=brick(c(lapply(median_raster_brick_per_band,FUN=subset, subset=1),median_raster_brick_per_band[[1]][[2]]))
   names(median_raster_brick_per_band)=c("band1","band2","band3","band4","band5","band6","band7","band8","no_samples")
   
+  # return
   return(median_raster_brick_per_band)
 }
 
@@ -878,4 +886,14 @@ CreateLoopMat = function(day_mat, composite_no, input_dir_vec, tile_vec) {
   
   # return
   return(loop_mat)
+}
+
+mytic = function() {
+  return(Sys.time())
+}
+
+mytoc = function(mt) {
+  end.time <- Sys.time()
+  time.taken <- end.time - mt
+  return(time.taken)
 }

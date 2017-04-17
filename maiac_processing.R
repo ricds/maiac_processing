@@ -230,6 +230,7 @@ foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"
   rm(list = c("nadir_brf_reflectance"))
   
   # create median value BRF composite from the BRF brick and masked QA brick, the output is 9 rasters (1-8 band, and no_samples)
+  # Couldn't implement multi-thread by clusterR (raster package) or doParallel, probably due to memory issues... single processing takes ~4min
   median_brf_reflectance = CalcMedianBRF(nadir_brf_reflectance_per_band)
   rm(list = c("nadir_brf_reflectance_per_band"))
   
