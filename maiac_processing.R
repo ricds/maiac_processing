@@ -85,11 +85,11 @@ is_ea_filter = FALSE
 composite_no = 16
 
 # number of cores to use
-no_cores = 3
+no_cores = 7
 
 # parameters
 MEASURE_RUN_TIME_ENABLED = TRUE
-PARALLEL_PROCESS_ENABLED = TRUE
+PARALLEL_PROCESS_ENABLED = FALSE
 REDIS_ENABLED = FALSE
 
 
@@ -144,7 +144,7 @@ if (PARALLEL_PROCESS_ENABLED) {
 
 # Loop through each day and year to process the composites
 # testar .errorhandling="pass" (passar o objeto de erro) ou "remove" (para ignorar)
-foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"), .export=ls(.GlobalEnv), .errorhandling="remove") %dopar% {
+foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"), .export=ls(.GlobalEnv), .errorhandling="remove") %do% {
 #foreach(j = 1:dim(loop_mat)[1]) %dopar% {
   #j=144
   
@@ -186,8 +186,8 @@ foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"
   #product_fname = FilterProductTilesbyRTLSTiles(product_fname, parameter_fname, output_dir)
   
   # convert the files from hdf to tif
-  ConvertHDF2TIF(product_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url)
-  ConvertHDF2TIF(parameter_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url)
+  ConvertHDF2TIF(product_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname)
+  ConvertHDF2TIF(parameter_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname)
   
   # remove directory from filenames, return only the "filenames".hdf
   product_fname = basename(product_fname)

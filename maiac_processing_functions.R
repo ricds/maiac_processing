@@ -243,9 +243,22 @@ RemoveDirectoryFromFilenameVec = function(product_string) {
 }
 
 # function to convert "x" files .HDF to .TIF from an input directory "input_dir" to a temporary output directory "output_dir"/tmp
-ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url) {
+ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname) {
+  # parallel method
+  require(foreach)
+  require(doParallel)
+  
+  # Initiate cluster
+  cl = parallel::makeCluster(no_cores, outfile=log_fname)
+  registerDoParallel(cl)
+  
+  # export stuff
+  #clusterExport(cl, varlist=c("singleHDF2TIF", "input_dir","output_dir"))
+  #clusterEvalQ(cl, library(gdalUtils)) # pra passar packages pros workers
+  
   #x = product_fname
-  for(i in 1:length(x)) {
+  foreach(i = 1:length(x), .packages=c("raster","gdalUtils","rgdal","RCurl"), .export=ls(.GlobalEnv), .errorhandling="remove") %dopar% {
+  #for(i in 1:length(x)) {
     #i=1
     
     # adjust output filename in case the product name has folder in the beggining
@@ -317,25 +330,9 @@ ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url) {
       print(paste0(Sys.time(), ": File ",i," from ",length(x)," is already converted to tif -> ",x1))
     }
   }
-  
-  # # parallel method
-  # require(foreach)
-  # require(doParallel)
-  # 
-  # # Calculate the number of cores
-  # no_cores <- detectCores()
-  # 
-  # # Initiate cluster
-  # cl<-makeCluster(no_cores)
-  # registerDoParallel(cl)
-  # clusterExport(cl, varlist=c("singleHDF2TIF", "input_dir","output_dir"))
-  # clusterEvalQ(cl, library(gdalUtils)) # pra passar packages pros workers
-  # 
-  # foreach(i=1:length(x)) %dopar% {
-  #   singleHDF2TIF(x[i],input_dir,output_dir,tmp_dir)
-  # }
-  # 
-  # stopCluster(cl)
+
+  # finish cluster
+  stopCluster(cl)
   
 }
 
