@@ -41,6 +41,10 @@ library(RCurl)  #install.packages("RCurl")
 library(doParallel)  #install.packages("doParallel")
 #library(doRedis)  #install.packages("doRedis")
 
+# to try and speed things up - not sure if it works
+library(compiler)
+enableJIT(3)
+
 
 # CONFIG ------------------------------------------------------------------
 
