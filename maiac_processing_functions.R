@@ -46,9 +46,9 @@ isTileProcessed = function(tile, input_dir, output_dir, tmp_dir) {
   result = FALSE
   
   #x=tile[i]
-  if (file.exists(paste0(output_dir,tmp_dir,"Processed.",x,".tif"))) {
+  if (file.exists(paste0(output_dir,tmp_dir,"Processed.",tile,".tif"))) {
     # message
-    print(paste0(Sys.time(), ": Tile ",x," is already processed, going to the next iteration."))
+    print(paste0(Sys.time(), ": Tile ",tile," is already processed, going to the next iteration."))
     
     # go to the next iteration
     result = TRUE
