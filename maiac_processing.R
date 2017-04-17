@@ -212,7 +212,7 @@ foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"
   #brf_reflectance = FilterBadValues(brf_reflectance, min=0, max=1) # not needed i think, if you filter the final result it's ok
   
   # convert BRF to Nadir
-  nadir_brf_reflectance = ConvertBRFNadir(brf_reflectance, brf_fv, brf_fg, rtls_kiso, rtls_kvol, rtls_kgeo, tile, year, no_cores, log_fname)
+  nadir_brf_reflectance = ConvertBRFNadir(brf_reflectance, brf_fv, brf_fg, rtls_kiso, rtls_kvol, rtls_kgeo, tile, year, output_dir, no_cores, log_fname)
   rm(list = c("brf_reflectance", "brf_fv", "brf_fg", "rtls_kiso", "rtls_kvol", "rtls_kgeo"))
   
   # create and apply QA filter mask following a set of rules in function filterQuality()
