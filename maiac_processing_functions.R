@@ -407,7 +407,7 @@ FilterBadValues = function(x, minArg, maxArg, equal) {
 # to do: arquivo vira float depois da covnersao, transformar em outro formato? (ex. int2s)
 # transf para int2s parece que ferra os valores
 # band values are calculated ok, tested calculating one band separatedely and compared to the batch convert
-ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, no_cores, log_fname) {
+ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_cores, log_fname) {
   # brfBrick (12 bandas por data, 1km)
   # brfFv (1 por data, 5km)
   # brfFg (1 por data, 5km)
