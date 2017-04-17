@@ -407,7 +407,7 @@ FilterBadValues = function(x, minArg, maxArg, equal) {
 # to do: arquivo vira float depois da covnersao, transformar em outro formato? (ex. int2s)
 # transf para int2s parece que ferra os valores
 # band values are calculated ok, tested calculating one band separatedely and compared to the batch convert
-ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year) {
+ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, no_cores, log_fname) {
   # brfBrick (12 bandas por data, 1km)
   # brfFv (1 por data, 5km)
   # brfFg (1 por data, 5km)
@@ -429,11 +429,16 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year) {
   }
   
   # list to put the results
-  BRFn = list()
+  #BRFn = list()
+  
+  # Initiate cluster
+  cl = parallel::makeCluster(no_cores, outfile=log_fname)
+  registerDoParallel(cl)
   
   # for each date
   #i=1
-  for (i in 1:length(BRF)) {
+  BRFn = foreach(i = 1:length(BRF), .packages=c("raster"), .export=ls(.GlobalEnv), .errorhandling="remove") %dopar% {
+  #for (i in 1:length(BRF)) {
     # message
     print(paste0(Sys.time(), ": Normalizing brf iteration ",i," from ",length(BRF)))
     
@@ -462,11 +467,15 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year) {
     
     # calculate brf nadir
     # original do documento: (BRFn = BRF * (kL - 0.04578*kV - 1.10003*kG)/( kL + FV*kV + FG*kG))
-    BRFn[[i]] = BRFi * (kLi - (0.04578*kVi) - (1.10003*kGi))/(kLi + (FVi*kVi) + (FGi*kGi))
+    #BRFn[[i]] = BRFi * (kLi - (0.04578*kVi) - (1.10003*kGi))/(kLi + (FVi*kVi) + (FGi*kGi))
+    c(BRFi * (kLi - (0.04578*kVi) - (1.10003*kGi))/(kLi + (FVi*kVi) + (FGi*kGi)))
   }
   
-  # constrain the BRFn between 0 and 1 - possible results
-  BRFn = FilterBadValues(BRFn, min=0, max=1)
+  # finish cluster
+  stopCluster(cl)
+  
+  # unlist the results to get a correct output and constrain the BRFn between 0 and 1 - possible results
+  BRFn = FilterBadValues(unlist(BRFn), min=0, max=1)
   
   # return
   return(BRFn)
