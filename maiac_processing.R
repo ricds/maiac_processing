@@ -63,10 +63,10 @@ nan_tiles_dir = "D:/_MAIAC/MAIAC_NanTiles/"
 tile_preview_dir = "D:/_MAIAC/MAIAC_PreviewTiles/"
 
 # input_dir_list, the one where the raw files are
-input_dir_vec = c("D:/h00v01/")
+input_dir_vec = c("D:/h00v01/", "E:/h01v04/", "E:/h01v05/", "E:/h01v06/", "E:/h02v00/", "E:/h02v01/", "E:/h02v02/")
 
 # tile to process
-tile_vec = c("h00v01")
+tile_vec = c("h00v01", "h01v04", "h01v05", "h01v06", "h02v00", "h02v01", "h02v02")
 
 # url to download maiac files for south america, in case of needed
 maiac_ftp_url = "ftp://maiac@dataportal.nccs.nasa.gov/DataRelease/SouthAmerica/"
@@ -83,6 +83,9 @@ is_ea_filter = FALSE
 
 # number of days on each composite
 composite_no = 16
+
+# number of cores to use
+no_cores = 3
 
 # parameters
 MEASURE_RUN_TIME_ENABLED = TRUE
@@ -122,7 +125,7 @@ if (REDIS_ENABLED) {
 # Calculate the number of cores minus 1
 if (PARALLEL_PROCESS_ENABLED) {
   # detect number of cores
-  no_cores = detectCores() - 1
+  #no_cores = detectCores() - 1
   
   # Initiate cluster
   cl = parallel::makeCluster(no_cores, outfile=log_fname)
@@ -141,7 +144,7 @@ if (PARALLEL_PROCESS_ENABLED) {
 
 # Loop through each day and year to process the composites
 # testar .errorhandling="pass" (passar o objeto de erro) ou "remove" (para ignorar)
-foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"), .export=ls(.GlobalEnv)) %dopar% {
+foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"), .export=ls(.GlobalEnv), .errorhandling="remove") %dopar% {
 #foreach(j = 1:dim(loop_mat)[1]) %dopar% {
   #j=144
   
