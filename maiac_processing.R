@@ -234,7 +234,7 @@ foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"
   rm(list = c("nadir_brf_reflectance_per_band"))
   
   # plot brfnadir to file to verify it later
-  png(filename=paste0(tile_preview_dir,"fig_",composite_fname,"_",year,day[length(day)],".png"), type="cairo", units="cm", width=15, height=15, pointsize=10, res=300)
+  png(filename=paste0(tile_preview_dir,"fig_",composite_fname,"_",tile,"_",year,day[length(day)],".png"), type="cairo", units="cm", width=15, height=15, pointsize=10, res=300)
   par(oma=c(4,4,4,4))
   plot(median_brf_reflectance)
   dev.off()
