@@ -251,13 +251,15 @@ ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_c
   # Initiate cluster
   cl = parallel::makeCluster(no_cores, outfile=log_fname)
   registerDoParallel(cl)
+  objects_to_export = c("x", "input_dir", "output_dir", "tmp_dir", "maiac_ftp_url", "DownloadMissingFile")
   
   # export stuff
   #clusterExport(cl, varlist=c("singleHDF2TIF", "input_dir","output_dir"))
   #clusterEvalQ(cl, library(gdalUtils)) # pra passar packages pros workers
   
   #x = product_fname
-  foreach(i = 1:length(x), .packages=c("raster","gdalUtils","rgdal","RCurl"), .export=ls(.GlobalEnv), .errorhandling="remove") %dopar% {
+  # .export=ls(.GlobalEnv)
+  foreach(i = 1:length(x), .packages=c("raster","gdalUtils","rgdal","RCurl"), .export=objects_to_export, .errorhandling="remove") %dopar% {
   #for(i in 1:length(x)) {
     #i=1
     
@@ -434,10 +436,11 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   # Initiate cluster
   cl = parallel::makeCluster(no_cores, outfile=log_fname)
   registerDoParallel(cl)
+  objects_to_export = c("BRF", "FV", "FG", "kL", "kV", "kG", "tile", "year", "rtls_day_vec")
   
   # for each date
   #i=1
-  BRFn = foreach(i = 1:length(BRF), .packages=c("raster"), .export=ls(.GlobalEnv), .errorhandling="remove") %dopar% {
+  BRFn = foreach(i = 1:length(BRF), .packages=c("raster"), .export=objects_to_export, .errorhandling="remove") %dopar% {
   #for (i in 1:length(BRF)) {
     # message
     print(paste0(Sys.time(), ": Normalizing brf iteration ",i," from ",length(BRF)))
