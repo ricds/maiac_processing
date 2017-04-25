@@ -41,6 +41,10 @@ library(RCurl)  #install.packages("RCurl")
 library(doParallel)  #install.packages("doParallel")
 #library(doRedis)  #install.packages("doRedis")
 
+# to try and speed things up - not sure if it works
+library(compiler)
+enableJIT(3)
+
 
 # CONFIG ------------------------------------------------------------------
 
@@ -85,11 +89,11 @@ is_ea_filter = FALSE
 composite_no = 16
 
 # number of cores to use
-no_cores = 3
+no_cores = 7
 
 # parameters
 MEASURE_RUN_TIME_ENABLED = TRUE
-PARALLEL_PROCESS_ENABLED = TRUE
+PARALLEL_PROCESS_ENABLED = FALSE
 REDIS_ENABLED = FALSE
 
 
@@ -144,7 +148,7 @@ if (PARALLEL_PROCESS_ENABLED) {
 
 # Loop through each day and year to process the composites
 # testar .errorhandling="pass" (passar o objeto de erro) ou "remove" (para ignorar)
-foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"), .export=ls(.GlobalEnv), .errorhandling="remove") %dopar% {
+foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"), .export=ls(.GlobalEnv), .errorhandling="remove") %do% {
 #foreach(j = 1:dim(loop_mat)[1]) %dopar% {
   #j=144
   
@@ -186,8 +190,8 @@ foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"
   #product_fname = FilterProductTilesbyRTLSTiles(product_fname, parameter_fname, output_dir)
   
   # convert the files from hdf to tif
-  ConvertHDF2TIF(product_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url)
-  ConvertHDF2TIF(parameter_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url)
+  ConvertHDF2TIF(product_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname)
+  ConvertHDF2TIF(parameter_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname)
   
   # remove directory from filenames, return only the "filenames".hdf
   product_fname = basename(product_fname)
@@ -208,7 +212,7 @@ foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"
   #brf_reflectance = FilterBadValues(brf_reflectance, min=0, max=1) # not needed i think, if you filter the final result it's ok
   
   # convert BRF to Nadir
-  nadir_brf_reflectance = ConvertBRFNadir(brf_reflectance, brf_fv, brf_fg, rtls_kiso, rtls_kvol, rtls_kgeo, tile, year)
+  nadir_brf_reflectance = ConvertBRFNadir(brf_reflectance, brf_fv, brf_fg, rtls_kiso, rtls_kvol, rtls_kgeo, tile, year, output_dir, no_cores, log_fname)
   rm(list = c("brf_reflectance", "brf_fv", "brf_fg", "rtls_kiso", "rtls_kvol", "rtls_kgeo"))
   
   # create and apply QA filter mask following a set of rules in function filterQuality()
@@ -230,6 +234,7 @@ foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"
   rm(list = c("nadir_brf_reflectance"))
   
   # create median value BRF composite from the BRF brick and masked QA brick, the output is 9 rasters (1-8 band, and no_samples)
+  # Couldn't implement multi-thread by clusterR (raster package) or doParallel, probably due to memory issues... single processing takes ~4min
   median_brf_reflectance = CalcMedianBRF(nadir_brf_reflectance_per_band)
   rm(list = c("nadir_brf_reflectance_per_band"))
   
