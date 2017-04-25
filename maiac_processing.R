@@ -89,7 +89,7 @@ composite_fname = CreateCompositeName(composite_no, product, is_qa_filter, is_ea
 day_mat = CreateDayMatrix(composite_no)
 
 # create loop matrix containing all the information to iterate
-loop_mat = CreateLoopMat(day_mat, composite_no, input_dir_vec, tile_vec)
+loop_mat = CreateLoopMat(day_mat, composite_no, input_dir_vec, tile_vec, composite_test)
 
 
 

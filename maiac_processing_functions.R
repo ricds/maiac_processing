@@ -851,40 +851,47 @@ CreateCompositeName = function(composite_no, product, is_qa_filter, is_ea_filter
 }
 
 # function to create loop mat, filtering the start and end dates from loop_mat, depending on composite_no
-CreateLoopMat = function(day_mat, composite_no, input_dir_vec, tile_vec) {
-  # find the lines in day_mat of first and last composite
-  # 64 2000 and 240 2016
-  idx_2000 = which(sprintf("%03d", 64) == day_mat, arr.ind = TRUE)[1]
-  idx_2016 = which(sprintf("%03d", 240) == day_mat, arr.ind = TRUE)[1]
+CreateLoopMat = function(day_mat, composite_no, input_dir_vec, tile_vec, composite_test) {
   
-  # old method
-  # loop_mat = expand.grid(c(1:dim(day_mat)[1]), c(2000:2016))
-  # loop_mat = cbind(loop_mat$Var1, loop_mat$Var2)
-  
-  # create the loop mat excluding the start and end index
-  mat1 = expand.grid(c(idx_2000:dim(day_mat)[1]), 2000)
-  mat2 = expand.grid(c(1:dim(day_mat)[1]), c(2001:2015))
-  mat3 = expand.grid(c(1:idx_2016), 2016)
-  
-  # merge mat columns
-  mat1 = cbind(mat1$Var1, mat1$Var2)
-  mat2 = cbind(mat2$Var1, mat2$Var2)
-  mat3 = cbind(mat3$Var1, mat3$Var2)
-  
-  # merge mats
-  day_year = rbind(mat1, mat2, mat3)
-
-  # initiate the variable that will contain both day, year and dir, tile
-  loop_mat = c()
-  
-  # populate the matrix
-  for (i in 1:length(input_dir_vec)) {
-    # create repetitions
-    dir_rep = rep(input_dir_vec[i],dim(day_year)[1])
-    tile_rep = rep(tile_vec[i],dim(day_year)[1])
+  # check if this is a test and create the loop_mat with the composite number and year
+  if (!any(is.nan(composite_test))) {
+    loop_mat = matrix(0, 1, 4)
+    loop_mat[1, 1:4] = c(composite_test[1], composite_test[2], input_dir_vec, tile_vec)
+  } else {
+    # find the lines in day_mat of first and last composite
+    # 64 2000 and 240 2016
+    idx_2000 = which(sprintf("%03d", 64) == day_mat, arr.ind = TRUE)[1]
+    idx_2016 = which(sprintf("%03d", 240) == day_mat, arr.ind = TRUE)[1]
     
-    # bind the matrices
-    loop_mat = rbind(loop_mat,cbind(day_year,dir_rep,tile_rep))
+    # old method
+    # loop_mat = expand.grid(c(1:dim(day_mat)[1]), c(2000:2016))
+    # loop_mat = cbind(loop_mat$Var1, loop_mat$Var2)
+    
+    # create the loop mat excluding the start and end index
+    mat1 = expand.grid(c(idx_2000:dim(day_mat)[1]), 2000)
+    mat2 = expand.grid(c(1:dim(day_mat)[1]), c(2001:2015))
+    mat3 = expand.grid(c(1:idx_2016), 2016)
+    
+    # merge mat columns
+    mat1 = cbind(mat1$Var1, mat1$Var2)
+    mat2 = cbind(mat2$Var1, mat2$Var2)
+    mat3 = cbind(mat3$Var1, mat3$Var2)
+    
+    # merge mats
+    day_year = rbind(mat1, mat2, mat3)
+    
+    # initiate the variable that will contain both day, year and dir, tile
+    loop_mat = c()
+    
+    # populate the matrix
+    for (i in 1:length(input_dir_vec)) {
+      # create repetitions
+      dir_rep = rep(input_dir_vec[i],dim(day_year)[1])
+      tile_rep = rep(tile_vec[i],dim(day_year)[1])
+      
+      # bind the matrices
+      loop_mat = rbind(loop_mat,cbind(day_year,dir_rep,tile_rep))
+    }
   }
   
   # return
