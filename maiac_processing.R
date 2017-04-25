@@ -211,6 +211,9 @@ foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"
   # message
   print(paste0(Sys.time(), ": Last composite processed finished in ", t2))
   
+  # do some garbage collection, may enhance memory
+  gc()
+  
   # End Loop Composite
   return(0)
 }
