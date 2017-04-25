@@ -16,7 +16,7 @@
 ## 9) plot a preview image of the composite and save it on the disk
 ## 10) save the processed composite
 ##
-## IMPORTANT: It is needed to have GDAL installed on the computer. One possible repository is https://trac.osgeo.org/osgeo4w/
+## IMPORTANT: It is needed to have GDAL installed on the computer. You can get that by installing some GIS software like QGIS or a repository like https://trac.osgeo.org/osgeo4w/
 ## At this momment the script tries to process all MAIAC time series and there is no way to specify a begin or end date.
 ##
 ## Notes:
