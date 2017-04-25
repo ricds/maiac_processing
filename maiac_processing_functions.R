@@ -248,6 +248,9 @@ ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_c
   require(foreach)
   require(doParallel)
   
+  # message
+  print(paste0(Sys.time(), ": Converting HDFs to TIF in parallel..."))
+  
   # Initiate cluster
   cl = parallel::makeCluster(no_cores, outfile=log_fname)
   registerDoParallel(cl)
@@ -432,6 +435,9 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   
   # list to put the results
   #BRFn = list()
+  
+  # message
+  print(paste0(Sys.time(), ": Normalizing brf in parallel..."))
   
   # Initiate cluster
   cl = parallel::makeCluster(no_cores, outfile=log_fname)
