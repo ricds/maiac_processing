@@ -58,7 +58,7 @@ source(paste0(functions_dir, "maiac_processing_functions.R"))
 output_dir = paste0(process_dir, "MAIAC_ProcessedTiles/")
 
 # log file path, this file will contain the text output from each core running, useful for debugging
-log_fname = paste0(process_dir, output_dir, "log.txt")
+log_fname = paste0(output_dir, "log.txt")
 
 # nan tiles directory, the one where nan tiles are stored, to use in case of non-existant RTLS file for processing
 nan_tiles_dir = paste0(process_dir, "MAIAC_NanTiles/")
