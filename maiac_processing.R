@@ -36,63 +36,51 @@ library(rgdal)  #install.packages("rgdal")
 library(foreach)  #install.packages("foreach") # click yes if asked
 library(RCurl)  #install.packages("RCurl")
 library(doParallel)  #install.packages("doParallel")
+library(rstudioapi)  #install.packages("rstudioapi")
 
 # pre-compile code to try to speed things up - not sure if it works
 library(compiler)
 enableJIT(3)
 
 
-# CONFIG ------------------------------------------------------------------
+# LOAD FUNCTIONS AND INITIALIZE VARIABLES ---------------------------------
 
-# functions filename with full directory
-functions_fname = "D:/2_Projects/1_Author/4_MAIAC_process/maiac_processing/maiac_processing_functions.R"
+# the folder where the script R functions and config file are placed
+functions_dir = paste0(dirname(rstudioapi::getActiveDocumentContext()$path),"/")
 
-# log file path, this file will contain the text output from each core running, useful for debugging
-log_fname = "D:/_MAIAC/MAIAC_ProcessedTiles/log.txt"
+# load config.txt file that should be in the same directory of the scripts
+source(paste0(functions_dir, "config.txt"))
+
+# load functions
+source(paste0(functions_dir, "maiac_processing_functions.R"))
 
 # output directory, the one to export the processed composites
-output_dir = "D:/_MAIAC/MAIAC_ProcessedTiles/"
+output_dir = paste0(process_dir, "MAIAC_ProcessedTiles/")
 
-# latlon tiles directory, the one where latlon tiles are stored - this files are used to create nan tiles
-latlon_tiles_dir = "D:/_MAIAC/MAIAC_LatLonTiles/"
+# log file path, this file will contain the text output from each core running, useful for debugging
+log_fname = paste0(process_dir, output_dir, "log.txt")
 
 # nan tiles directory, the one where nan tiles are stored, to use in case of non-existant RTLS file for processing
-nan_tiles_dir = "D:/_MAIAC/MAIAC_NanTiles/"
+nan_tiles_dir = paste0(process_dir, "MAIAC_NanTiles/")
 
 # preview directory, the one to to export preview ".png" images
-tile_preview_dir = "D:/_MAIAC/MAIAC_PreviewTiles/"
+tile_preview_dir = paste0(process_dir, "MAIAC_PreviewTiles/")
 
-# raw files input directory, can set up more than one directory
-input_dir_vec = c("D:/h00v01/", "E:/h01v04/", "E:/h01v05/", "E:/h01v06/", "E:/h02v00/", "E:/h02v01/", "E:/h02v02/")
+# create preview directory if it doesnt exist
+dir.create(file.path(tile_preview_dir), showWarnings = FALSE)
 
-# tile(s) to process, can set up more than one directory, put in the same order of input_dir_vec
-tile_vec = c("h00v01", "h01v04", "h01v05", "h01v06", "h02v00", "h02v01", "h02v02")
+# create nan tiles directory if it doesnt exist
+dir.create(file.path(nan_tiles_dir), showWarnings = FALSE)
 
-# url to download maiac files for south america in case of corrupted .hdf or missing RTLS file
-maiac_ftp_url = "ftp://maiac@dataportal.nccs.nasa.gov/DataRelease/SouthAmerica/"
+# create processed composites/tiles directory if it doesnt exist
+dir.create(file.path(output_dir), showWarnings = FALSE)
 
 # product name MAIACTBRF, MAIACABRF, MAIACRTLS, don't change this
 product = c("MAIACTBRF","MAIACABRF")
 parameters = "MAIACRTLS"
 
-# enables filtering by Quality Assessment bits (adjacent clouds and stuff), may reduce number of available pixels
-is_qa_filter = FALSE
-
-# enables filtering by Extreme Angles > 80, may reduce number of available pixels
-is_ea_filter = FALSE
-
-# number of days on each composite, should be 8, 16 or 32
-composite_no = 16
-
-# number of cores to use while processing, should use total number of cores minus one, to try to prevent the computer from freezing
-no_cores = 7
-
-
-
-# SEQUENCE FOR SEPARATE TILE PROCESSING -------------------------------------------------------------------
-
-# load functions
-source(functions_fname)
+# url to download maiac files for south america in case of corrupted .hdf or missing RTLS file
+maiac_ftp_url = "ftp://maiac@dataportal.nccs.nasa.gov/DataRelease/SouthAmerica/"
 
 # define the output base filename
 composite_fname = CreateCompositeName(composite_no, product, is_qa_filter, is_ea_filter)
@@ -103,11 +91,9 @@ day_mat = CreateDayMatrix(composite_no)
 # create loop matrix containing all the information to iterate
 loop_mat = CreateLoopMat(day_mat, composite_no, input_dir_vec, tile_vec)
 
-# create preview directory if it doesnt exist
-dir.create(file.path(tile_preview_dir), showWarnings = FALSE)
 
-# create nan tiles directory if it doesnt exist
-dir.create(file.path(nan_tiles_dir), showWarnings = FALSE)
+
+# START OF PROCESSING ---------------------------------
 
 # Loop through the loop_mat matrix 
 foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"), .export=ls(.GlobalEnv), .errorhandling="remove") %do% {
