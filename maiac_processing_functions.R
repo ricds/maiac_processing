@@ -244,12 +244,15 @@ RemoveDirectoryFromFilenameVec = function(product_string) {
 
 # function to convert "x" files .HDF to .TIF from an input directory "input_dir" to a temporary output directory "output_dir"/tmp
 ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname) {
+  # message
+  print(paste0(Sys.time(), ": Converting HDFs to TIF in parallel..."))
+  
+  # measure time
+  t1 = mytic()
+  
   # parallel method
   require(foreach)
   require(doParallel)
-  
-  # message
-  print(paste0(Sys.time(), ": Converting HDFs to TIF in parallel..."))
   
   # Initiate cluster
   cl = parallel::makeCluster(no_cores, outfile=log_fname)
@@ -339,6 +342,12 @@ ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_c
   # finish cluster
   stopCluster(cl)
   
+  # measure time
+  t2 = mytoc(t1)
+  
+  # message
+  print(paste0(Sys.time(), ": Converting HDFs to TIF in parallel finished in ", t2))
+  
 }
 
 
@@ -427,6 +436,12 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   # kV = rtls_kvol
   # kG = rtls_kgeo
   
+  # message
+  print(paste0(Sys.time(), ": Normalizing brf in parallel..."))
+  
+  # measure time
+  t1 = mytic()
+  
   # retrieve RTLS day
   rtls_day_vec = vector()
   for (i in 1:length(kL)) {
@@ -435,9 +450,6 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   
   # list to put the results
   #BRFn = list()
-  
-  # message
-  print(paste0(Sys.time(), ": Normalizing brf in parallel..."))
   
   # Initiate cluster
   cl = parallel::makeCluster(no_cores, outfile=log_fname)
@@ -485,6 +497,12 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   
   # unlist the results to get a correct output and constrain the BRFn between 0 and 1 - possible results
   BRFn = FilterBadValues(unlist(BRFn), min=0, max=1)
+  
+  # measure time
+  t2 = mytoc(t1)
+  
+  # message
+  print(paste0(Sys.time(), ": Normalizing brf in parallel finished in ", t2))
   
   # return
   return(BRFn)
@@ -693,6 +711,12 @@ ReorderBrickPerBand = function(raster_brick) {
 CalcMedianBRF = function(raster_brick_per_band) {
   #raster_brick_per_band = nadir_brf_reflectance_per_band
 
+  # message
+  print(paste0(Sys.time(), ": Calculating median..."))
+  
+  # measure time
+  t1 = mytic()
+  
   # function to calculate median and return the nearest value to the median
   # this prevents the algorithm calculating the mean of "two median values" if you dont have one single median, example:
   # values = c(0.0338, 0.0172, 0.0368, NA, 0.0230, NA, NA, NA, NA, NA, NA)
@@ -746,6 +770,12 @@ CalcMedianBRF = function(raster_brick_per_band) {
   # only bands
   median_raster_brick_per_band=brick(c(lapply(median_raster_brick_per_band,FUN=subset, subset=1),median_raster_brick_per_band[[1]][[2]]))
   names(median_raster_brick_per_band)=c("band1","band2","band3","band4","band5","band6","band7","band8","no_samples")
+  
+  # measure time
+  t2 = mytoc(t1)
+  
+  # message
+  print(paste0(Sys.time(), ": Calculating median finished in ", t2))
   
   # return
   return(median_raster_brick_per_band)
@@ -910,6 +940,6 @@ mytic = function() {
 
 mytoc = function(mt) {
   end.time <- Sys.time()
-  time.taken <- end.time - mt
+  time.taken <- paste0(round(as.numeric(difftime(end.time,mt,units = "mins")),6), " min")
   return(time.taken)
 }

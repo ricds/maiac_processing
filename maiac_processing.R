@@ -100,6 +100,12 @@ loop_mat = CreateLoopMat(day_mat, composite_no, input_dir_vec, tile_vec, composi
 # Loop through the loop_mat matrix 
 foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"), .export=ls(.GlobalEnv), .errorhandling="remove") %do% {
   
+  # message
+  print(paste0(Sys.time(), ": Start processing a new composite..."))
+  
+  # measure time
+  t1 = mytic()
+  
   # get input_dir from loop_mat
   input_dir = as.character(loop_mat[j,3])
   
@@ -198,6 +204,12 @@ foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"
   
   # delete temporary directory
   unlink(file.path(output_dir, tmp_dir), recursive=TRUE)
+  
+  # measure time
+  t2 = mytoc(t1)
+  
+  # message
+  print(paste0(Sys.time(), ": Last composite processed finished in ", t2))
   
   # End Loop Composite
   return(0)
