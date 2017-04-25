@@ -16,7 +16,7 @@
 ## 9) plot a preview image of the composite and save it on the disk
 ## 10) save the processed composite
 ##
-## IMPORTANT: It is also needed to have GDAL installed on the computer. One possible repository is https://trac.osgeo.org/osgeo4w/
+## IMPORTANT: It is needed to have GDAL installed on the computer. One possible repository is https://trac.osgeo.org/osgeo4w/
 ## At this momment the script tries to process all MAIAC time series and there is no way to specify a begin or end date.
 ##
 ## Notes:
@@ -97,7 +97,6 @@ loop_mat = CreateLoopMat(day_mat, composite_no, input_dir_vec, tile_vec)
 
 # Loop through the loop_mat matrix 
 foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"), .export=ls(.GlobalEnv), .errorhandling="remove") %do% {
-  #j=144
   
   # get input_dir from loop_mat
   input_dir = as.character(loop_mat[j,3])
