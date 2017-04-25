@@ -21,7 +21,7 @@
 ## 2) A config file named exactly "config.txt" must exist in the script folder. A example file is provided.
 ## 3) At this momment the script tries to process all MAIAC time series and there is no way to specify a begin or end date. However it is possible to a test with a single composite using the composite_test variable in the "config.txt"
 ##
-## Notes:
+## Notes to self:
 ## sds_name = c("sur_refl", "Sigma_BRFn", "Snow_Fraction", "Snow_Grain_Diameter", "Snow_Fit", "Status_QA", "sur_refl_500m", "cosSZA", "cosVZA", "RelAZ", "Scattering_Angle", "Glint_Angle", "SAZ", "VAZ", "Fv", "Fg")
 ## sds_data_type = c("INT16", "INT16", "INT16", "INT16", "INT16", "UINT16","INT16", "INT16", "INT16", "INT16", "INT16", "INT16", "INT16", "INT16", "FLOAT32", "FLOAT32")
 ## sds_parameters_name = c("Kiso", "Kvol", "Kgeo", "sur_albedo", "UpdateDay")
