@@ -350,7 +350,7 @@ ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_c
   
 }
 
-
+ConvertHDF2TIF = cmpfun(ConvertHDF2TIF)
 
 # function to load files of a specific type from the temporary output folder "output_dir"/tmp
 LoadMAIACFiles = function(raster_filename, output_dir, tmp_dir, type) {
@@ -507,6 +507,8 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   # return
   return(BRFn)
 }
+
+ConvertBRFNadir = cmpfun(ConvertBRFNadir)
 
 # compute quality based on occuring QA on the raster
 # https://stevemosher.wordpress.com/2012/12/05/modis-qc-bits/
@@ -707,6 +709,24 @@ ReorderBrickPerBand = function(raster_brick) {
   return(y)
 }
 
+ReorderBrickPerBand = cmpfun(ReorderBrickPerBand)
+
+# funcao de mediana em C++
+require(Rcpp)
+cppFunction("
+  double median2(std::vector<double> x){
+            double median;
+            size_t size = x.size();
+            sort(x.begin(), x.end());
+            if (size  % 2 == 0){
+            median = (x[size / 2 - 1] + x[size / 2]) / 2.0;
+            }
+            else {
+            median = x[size / 2];
+            }
+            return median;
+            }")
+
 # function to merge the data from 8-day time span into one composite file using the median value
 CalcMedianBRF = function(raster_brick_per_band) {
   #raster_brick_per_band = nadir_brf_reflectance_per_band
@@ -716,38 +736,24 @@ CalcMedianBRF = function(raster_brick_per_band) {
   
   # measure time
   t1 = mytic()
-  
-  # function to calculate median and return the nearest value to the median
-  # this prevents the algorithm calculating the mean of "two median values" if you dont have one single median, example:
-  # values = c(0.0338, 0.0172, 0.0368, NA, 0.0230, NA, NA, NA, NA, NA, NA)
-  # median equlals to 0.0284, a value that doesn't exist, it's a mean of 0.0338 and 0.0230
-  # now, the difference between values and median = c(0.0054, 0.0112, 0.0084, NA, 0.0054, NA, NA, NA, NA, NA, NA)
-  # an existing median can be either 0.0338 or 0.023, but i choose arbitrarily to get the first value it find in the vector
-  #medianIndex = function(x) which.min(abs(x - median(x, na.rm=T)))
-    
-  # function to calc the median "m" of a raster brick and return the index "idx" of the raster corresponding to that median value, also get how many observations that pixel had
-  # about the median calc: it calculate median and return the nearest value to the median
-  # this prevents the algorithm calculating the mean of "two median values" if you dont have one single median, example:
-  # values = c(0.0338, 0.0172, 0.0368, NA, 0.0230, NA, NA, NA, NA, NA, NA)
-  # median equlals to 0.0284, a value that doesn't exist, it's a mean of 0.0338 and 0.0230
-  # now, the difference between values and median = c(0.0054, 0.0112, 0.0084, NA, 0.0054, NA, NA, NA, NA, NA, NA)
-  # an existing median can be either 0.0338 or 0.023, but i choose arbitrarily to get the first value it find in the vector
+
+  # function to calculate median and number of pixels
   CalcMedianAndN = function(x) {
     value = as.numeric(x)
-    if (sum(is.na(value))==length(value)) {
-      #c(NA,NA,NA) # if 3 outputs
-      c(NA,NA)  # if 2 outputs
+    value2 = value[!is.na(value)]
+    l_value2 = length(value2)
+    if (l_value2 == 0) {
+      c(NA,NA)
     } else {
-      #idx = medianIndex(value)
-      idx = which.min(abs(value - median(value, na.rm=T)))
-      m = value[idx]
-      n = sum(!is.na(value))
+      m = median2(value2)
+      n = l_value2
       
-      # return the data (m), index of image take was taken (idx), and number of good pixels (n)
-      #c(m, idx, n)
+      # return the data (m) and number of good pixels (n)
       c(m, n)
     }
   }
+  
+  CalcMedianAndN = cmpfun(CalcMedianAndN)
   
   # list to put the results
   median_raster_brick_per_band = list()
@@ -780,6 +786,8 @@ CalcMedianBRF = function(raster_brick_per_band) {
   # return
   return(median_raster_brick_per_band)
 }
+
+CalcMedianBRF = cmpfun(CalcMedianBRF)
 
 # function to write the processed file to disk while applying a factor of 10000 to bands 1-8 to reduce disk space usage
 SaveProcessedTileComposite = function(medianBRF, output_dir, composite_fname, tile, year, day) {
