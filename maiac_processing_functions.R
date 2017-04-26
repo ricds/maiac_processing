@@ -379,28 +379,12 @@ LoadMAIACFiles = function(raster_filename, output_dir, tmp_dir, type) {
   return(raster_brick)
 }
 
-# function to filter bad values of a "x" variable between min and max, or equal something
-FilterBadValues = function(x, minArg, maxArg, equal) {
+# function to filter bad values of a "x" variable
+FilterValEqualToNA = function(x, equal) {
   
   # filter function equal
-  FilterEqual = function(x) {
+  FilterEqual = function(x, equal) {
     x[x==equal]=NA
-    return(x)
-  }
-  
-  # filter function min/max
-  FilterMinMax = function(x) {
-    x[x<minArg | x>maxArg]=NA
-    return(x)
-  }
-  
-  # choose function based on argument passed to the function
-  if (hasArg(equal)) {
-    MyFun =  FilterEqual
-  } else if (hasArg(minArg) & hasArg(maxArg)) {
-    MyFun =  FilterMinMax  
-  } else {
-    print(paste0(Sys.time(), ": Couldn't find min, max or equal argument, returning the variable without filtering."))
     return(x)
   }
   
@@ -408,13 +392,36 @@ FilterBadValues = function(x, minArg, maxArg, equal) {
   # for function method
   if (is.list(x)) {
     for (i in 1:length(x)) {
-      x[[i]] = MyFun(x[[i]])
+      x[[i]] = FilterEqual(x[[i]], equal)
     }
   } else
-    x = MyFun(x)
+    x = FilterEqual(x, equal)
 
   # return value
   return(x)
+}
+
+# function to filter bad values of a "x" variable
+FilterValOutRangeToNA = function(x, minArg, maxArg) {
+
+  # filter function min/max
+  FilterMinMax = function(x, minArg, maxArg) {
+    x[x<minArg | x>maxArg]=NA
+    return(x)
+  }
+  
+  # apply the function
+  # for function method
+  if (is.list(x)) {
+    y = list()
+    for (i in 1:length(x)) {
+      y[[i]] = FilterMinMax(x[[i]], minArg, maxArg)
+    }
+  } else
+    y = FilterMinMax(x, minArg, maxArg)
+  
+  # return value
+  return(y)
 }
 
 # function to convert brf to brfn
@@ -422,19 +429,12 @@ FilterBadValues = function(x, minArg, maxArg, equal) {
 # transf para int2s parece que ferra os valores
 # band values are calculated ok, tested calculating one band separatedely and compared to the batch convert
 ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_cores, log_fname) {
-  # brfBrick (12 bandas por data, 1km)
-  # brfFv (1 por data, 5km)
-  # brfFg (1 por data, 5km)
-  # rtlsKiso (8 bandas, 1km)
-  # rtlsKvol (8 bandas, 1km)
-  # rtlsKgeo (8 bandas, 1km)
-  
-  # BRF = brf_reflectance
-  # FV = brf_fv
-  # FG = brf_fg
-  # kL = rtls_kiso
-  # kV = rtls_kvol
-  # kG = rtls_kgeo
+  # BRF = brf_reflectance  # (12 bandas por data, 1km)
+  # FV = brf_fv  # (1 por data, 5km)
+  # FG = brf_fg  # (1 por data, 5km)
+  # kL = rtls_kiso  # (8 bandas, 1km)
+  # kV = rtls_kvol  # (8 bandas, 1km)
+  # kG = rtls_kgeo  # (8 bandas, 1km)
   
   # message
   print(paste0(Sys.time(), ": Normalizing brf in parallel..."))
@@ -447,14 +447,18 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   for (i in 1:length(kL)) {
     rtls_day_vec[i] = as.numeric(substr(names(kL[[i]])[[1]],22,24))
   }
+
+  # function to normalize
+  ff = function(BRFi, kLi, kVi, kGi, FVi, FGi) {
+    return(BRFi * (kLi - (0.04578*kVi) - (1.10003*kGi))/(kLi + (FVi*kVi) + (FGi*kGi)))
+  }
   
-  # list to put the results
-  #BRFn = list()
+  ff = cmpfun(ff)
   
   # Initiate cluster
   cl = parallel::makeCluster(no_cores, outfile=log_fname)
   registerDoParallel(cl)
-  objects_to_export = c("BRF", "FV", "FG", "kL", "kV", "kG", "tile", "year", "rtls_day_vec")
+  objects_to_export = c("BRF", "FV", "FG", "kL", "kV", "kG", "tile", "year", "rtls_day_vec", "ff", "FilterValOutRangeToNA")
   
   # for each date
   #i=1
@@ -487,17 +491,20 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
     kGi = kG[[idx]]
     
     # calculate brf nadir
-    # original do documento: (BRFn = BRF * (kL - 0.04578*kV - 1.10003*kG)/( kL + FV*kV + FG*kG))
-    #BRFn[[i]] = BRFi * (kLi - (0.04578*kVi) - (1.10003*kGi))/(kLi + (FVi*kVi) + (FGi*kGi))
-    c(BRFi * (kLi - (0.04578*kVi) - (1.10003*kGi))/(kLi + (FVi*kVi) + (FGi*kGi)))
+    #c(overlay(BRFi, kLi, kVi, kGi, FVi, FGi, fun=ff))
+    tmp = overlay(BRFi, kLi, kVi, kGi, FVi, FGi, fun=ff)
+    c(FilterValOutRangeToNA(tmp, 0, 1))
   }
   
   # finish cluster
   stopCluster(cl)
   
-  # unlist the results to get a correct output and constrain the BRFn between 0 and 1 - possible results
-  BRFn = FilterBadValues(unlist(BRFn), min=0, max=1)
+  # unlist the results to get a correct output
+  BRFn = unlist(BRFn)
   
+  # constrain the BRFn between 0 and 1 - possible reflectance results
+  #BRFn = FilterValOutRangeToNA(BRFn, 0, 1)
+
   # measure time
   t2 = mytoc(t1)
   
@@ -661,10 +668,10 @@ ApplyMaskOnBrick = function(raster_brick, mask_brick) {
 # function to create extreme azimutal angle >80 mask and apply to BRF
 FilterEA = function(raster_brick, product_fname, output_dir, tmp_dir) {
   #cosSZA = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "cosSZA")
-  #cosSZA = filterBadValues(cosSZA, min=-10000, max=10000)
+  #cosSZA = FilterValOutRangeToNA(cosSZA, -10000, 10000)
   #acosSZA = lapply(cosSZA,FUN = function(raster_brick) calc(raster_brick, fun = acos))
   SAZ = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "SAZ")
-  SAZ = FilterBadValues(SAZ, min=-10000, max=80)
+  SAZ = FilterValOutRangeToNA(SAZ, -10000, 80)
   
   # function to create the mask
   notna2one = function(x) {

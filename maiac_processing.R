@@ -163,8 +163,8 @@ foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"
   
   # 4) filter bad or fill values from the data
   # for Fv and Fg, the -99999 is a fill value and should be removed
-  brf_fv = FilterBadValues(brf_fv, equal=-99999)
-  brf_fg = FilterBadValues(brf_fg, equal=-99999)
+  brf_fv = FilterValEqualToNA(brf_fv, -99999)
+  brf_fg = FilterValEqualToNA(brf_fg, -99999)
   #brf_reflectance = FilterBadValues(brf_reflectance, min=0, max=1) # it seems that if you filter the final result from 0 to 1, this step is not needed
   
   # 5) (parallel computing) apply brf normalization to nadir for each date using the respective RTLS parameters or nearest RTLS file, and the eq. from MAIAC documentation: (BRFn = BRF * (kL - 0.04578*kV - 1.10003*kG)/( kL + FV*kV + FG*kG))
