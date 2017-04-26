@@ -739,17 +739,12 @@ CalcMedianBRF = function(raster_brick_per_band) {
 
   # function to calculate median and number of pixels
   CalcMedianAndN = function(x) {
-    value = as.numeric(x)
-    value2 = value[!is.na(value)]
-    l_value2 = length(value2)
-    if (l_value2 == 0) {
+    value = x[!is.na(x)]
+    l_value = length(value)
+    if (l_value == 0) {
       c(NA,NA)
     } else {
-      m = median2(value2)
-      n = l_value2
-      
-      # return the data (m) and number of good pixels (n)
-      c(m, n)
+      c(median2(value), l_value)
     }
   }
   
@@ -759,7 +754,7 @@ CalcMedianBRF = function(raster_brick_per_band) {
   median_raster_brick_per_band = list()
 
   #require(snow)
-  
+
   # for each band
   for (i in 1:length(raster_brick_per_band)) {
     # message
@@ -772,7 +767,7 @@ CalcMedianBRF = function(raster_brick_per_band) {
     #median_raster_brick_per_band[[i]] = clusterR(raster_brick_per_band[[i]], calc, args=list(fun=CalcMedianAndN))
     #endCluster()
   }
-  
+    
   # only bands
   median_raster_brick_per_band=brick(c(lapply(median_raster_brick_per_band,FUN=subset, subset=1),median_raster_brick_per_band[[1]][[2]]))
   names(median_raster_brick_per_band)=c("band1","band2","band3","band4","band5","band6","band7","band8","no_samples")
