@@ -712,7 +712,6 @@ ReorderBrickPerBand = function(raster_brick) {
 ReorderBrickPerBand = cmpfun(ReorderBrickPerBand)
 
 # funcao de mediana em C++
-require(Rcpp)
 cppFunction("
   double median2(std::vector<double> x){
             double median;
@@ -753,19 +752,16 @@ CalcMedianBRF = function(raster_brick_per_band) {
   # list to put the results
   median_raster_brick_per_band = list()
 
-  #require(snow)
-
   # for each band
   for (i in 1:length(raster_brick_per_band)) {
     # message
     print(paste0(Sys.time(), ": Calculating median per band ",i," from ",length(raster_brick_per_band)))
 
-    # calc median
-    median_raster_brick_per_band[[i]] = calc(raster_brick_per_band[[i]], fun=CalcMedianAndN)
-
-    #beginCluster(no_cores)
-    #median_raster_brick_per_band[[i]] = clusterR(raster_brick_per_band[[i]], calc, args=list(fun=CalcMedianAndN))
-    #endCluster()
+    # calc median, if i == 1 save the number of pixels, otherwise just save the values
+    if (i == 1) {
+      median_raster_brick_per_band[[i]] = calc(raster_brick_per_band[[i]], fun=CalcMedianAndN)
+    } else
+      median_raster_brick_per_band[[i]] = calc(raster_brick_per_band[[i]], fun=CalcMedianAndN)[[1]]
   }
     
   # only bands
