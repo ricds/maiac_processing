@@ -38,7 +38,9 @@ library(rgdal)  #install.packages("rgdal")
 library(foreach)  #install.packages("foreach") # click yes if asked
 library(RCurl)  #install.packages("RCurl")
 library(doParallel)  #install.packages("doParallel")
-library(rstudioapi)  #install.packages("rstudioapi")
+library(rstudioapi)  #install.packages("rstudioapi")]
+library(compiler)  #install.packages("compiler")
+library(Rcpp)  #install.packages("compiler")
 
 # pre-compile code to try to speed things up - not sure if it works
 library(compiler)
