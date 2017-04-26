@@ -146,8 +146,8 @@ foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"
   #product_fname = FilterProductTilesbyRTLSTiles(product_fname, parameter_fname, output_dir)
   
   # 2) (parallel computing) convert files from hdf to geotif using gdal_translate
-  ConvertHDF2TIF(product_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname)
-  ConvertHDF2TIF(parameter_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname)
+  ConvertHDF2TIF(product_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname, is_ea_filter, is_qa_filter, "ref")
+  ConvertHDF2TIF(parameter_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname, is_ea_filter, is_qa_filter, "rtls")
   
   # remove directory from filenames, return only the "filenames".hdf
   product_fname = basename(product_fname)
