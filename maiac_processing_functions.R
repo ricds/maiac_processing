@@ -548,9 +548,7 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   objects_to_export = c("BRF", "FV", "FG", "kL", "kV", "kG", "tile", "year", "rtls_day_vec", "ff", "FilterValOutRangeToNA")
   
   # for each date
-  #i=1
   BRFn = foreach(i = 1:length(BRF), .packages=c("raster"), .export=objects_to_export, .errorhandling="remove") %dopar% {
-  #for (i in 1:length(BRF)) {
     # message
     print(paste0(Sys.time(), ": Normalizing brf iteration ",i," from ",length(BRF)))
     
@@ -589,8 +587,14 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   # unlist the results to get a correct output
   BRFn = unlist(BRFn)
   
-  # constrain the BRFn between 0 and 1 - possible reflectance results
-  #BRFn = FilterValOutRangeToNA(BRFn, 0, 1)
+  # verify if layers are all NA and delete
+  idx_vec = vector()
+  for (i in 1:length(BRFn)) {
+    if (all(is.na(minValue(BRFn[[i]]))) & all(is.na(maxValue(BRFn[[i]]))))
+      idx_vec = c(idx_vec,i)
+  }
+  if (length(idx_vec)>0)
+    BRFn = BRFn[-c(idx_vec)]
 
   # measure time
   t2 = mytoc(t1)
