@@ -38,12 +38,13 @@ library(rgdal)  #install.packages("rgdal")
 library(foreach)  #install.packages("foreach") # click yes if asked
 library(RCurl)  #install.packages("RCurl")
 library(doParallel)  #install.packages("doParallel")
-library(rstudioapi)  #install.packages("rstudioapi")]
+library(rstudioapi)  #install.packages("rstudioapi")
 library(compiler)  #install.packages("compiler")
-library(Rcpp)  #install.packages("compiler")
+library(Rcpp)  #install.packages("Rcpp")
 
 # pre-compile code to try to speed things up - not sure if it works
 library(compiler)
+enableJIT(3)
 enableJIT(3)
 
 
@@ -128,7 +129,7 @@ foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"
     return(0)
   
   # if no brf or rtls is available for given day, year, tile, (1) try to download it (in case of rtls), or (2) return nan output, log the information and go to next iteration
-  if (!IsDataAvailable(product, tile, year, day, nan_tiles_dir, output_dir, obs="brf", maiac_ftp_url) | !IsDataAvailable(parameters, tile, year, day, nan_tiles_dir, output_dir, obs="rtls", maiac_ftp_url))
+  if (!IsDataAvailable(product, tile, year, day, nan_tiles_dir, output_dir, obs="brf", maiac_ftp_url, composite_fname) | !IsDataAvailable(parameters, tile, year, day, nan_tiles_dir, output_dir, obs="rtls", maiac_ftp_url, composite_fname))
     return(0)
   
   # set temporary directory

@@ -57,57 +57,117 @@ isTileProcessed = function(tile, input_dir, output_dir, tmp_dir) {
 }
 
 # function to check if RTLS tile is available, if it does return TRUE, if it doesn't exist, create a "processed tile" with nan values
-IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs, maiac_ftp_url) {
+IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs, maiac_ftp_url, composite_fname) {
   # set escape variable default
   result = TRUE
   
-  # get days that should have rtls
-  rtls_days_theoric = seq(8,360,8)
-  
   # retrieve data available
   fname = GetFilenameVec(type, input_dir, tile, year, day)
-  
-  # if file is a rtls and it doesn't exist, try to download it before assuming it doesn't exist
-  if (length(fname) == 0 & obs == "rtls") {
-    # find which rtls files should exist
-    day_match = match(as.numeric(day), rtls_days_theoric)
-    
-    # get its index
-    day_idx = day_match[!is.na(day_match)]
-    
-    # get its value
-    rtls_match = rtls_days_theoric[day_idx]
-    
-    # transform it back to char with 3 digits
-    rtls_match = sprintf("%03d", rtls_match)
-    
-    # try to download the missing rtls
-    for (i in 1:length(rtls_match)) {
-      DownloadMissingFile(paste0(type,".",tile,".",year,rtls_match[i],".hdf"), paste0(input_dir,year,"/"), maiac_ftp_url)
-    }
-    
-    # retrieve fname again
-    fname = GetFilenameVec(type, input_dir, tile, year, day)
-  }
-    
-  # if the variable is empty
-  if (length(fname)==0) {
 
+  # if its brf
+  if (length(fname)==0 & obs == "brf") {
+    
     # log the bad file
     line = paste(obs, year, day[length(day)], tile, sep=",")
     write(line, file=paste0(output_dir,"missing_files.txt"), append=TRUE)
     
     # load a brick of 9 nan bands (equivalent to band1-8 and number of pixels)
     b = brick(lapply(c(1:9), FUN=function(x) raster(paste0(nan_tiles_dir,"nantile.",tile,".tif"))))
-
+    
     # save the nan tile as the processed tile
     writeRaster(b, filename=paste0(output_dir, composite_fname, ".", tile, ".", year, day[length(day)], ".tif"), format="GTiff", datatype='INT2S', overwrite=TRUE)
     
     # message
-    print(paste0(Sys.time(), ": Couldn't find ", fname, " for tile ", tile, ", year ", year, ", and day ", day[length(day)],". Going to next iteration..."))
+    print(paste0(Sys.time(), ": Couldn't find ", obs ," tile ", tile, ", year ", year, ", and day ", day[length(day)],". Going to next iteration..."))
     
     # go to the next iteration
     result = FALSE
+  }
+  
+  # if its rtls
+  if (obs == "rtls") {
+    # get all possible rtls days
+    rtls_days = seq(8,360,8)
+    
+    # find which rtls files should exist
+    day_match = match(as.numeric(day), rtls_days)
+    
+    # get its index
+    day_idx = day_match[!is.na(day_match)]
+    
+    # get its value
+    rtls_match = rtls_days[day_idx]
+    
+    # transform it back to char with 3 digits
+    rtls_match = sprintf("%03d", rtls_match)
+    
+    # get full rtls name
+    rtls_match = paste0(type,".",tile,".",year,rtls_match,".hdf")
+    
+    # if rtls found is less than the total rtls for the composite, try to download the missing rtls
+    if (length(fname) < length(rtls_match)) {
+      # delete the files that are already downloaded
+      rtls_to_download = rtls_match[-c(grep(pattern = paste(fname, collapse="|"), x = rtls_match))]
+      
+      # check if the script already tried to download the file in the past
+      if (file.exists(paste0(output_dir,"download_fail.txt")) & length(rtls_to_download)>0) {
+        # read txt file
+        txt = readLines(paste0(output_dir,"download_fail.txt"))
+        
+        # test if tile exists in txt
+        idx_vec = vector()
+        for (i in 1:length(rtls_to_download)) {
+          # match the txt with the current rtls
+          idx = match(rtls_to_download[i], txt)
+          
+          # if file exists in the txt remove it from the rlts match vector
+          if (!is.na(idx)) {
+            # add the idx to the vector
+            idx_vec = c(idx_vec, idx)
+            
+            # message
+            print(paste0(Sys.time(), ": Skipping download of ", obs ," tile ", tile, ", year ", year, ", and day ", rtls_to_download[i]," because the script already tried to download it in another run. Delete download_fail.txt if you want to try to download it again..."))
+          }
+        }
+        
+        # remove the idx found
+        if (length(idx_vec)>0)
+          rtls_to_download = rtls_to_download[-c(idx_vec)]
+      }
+      
+      # try to download the missing rtls
+      if (length(rtls_to_download)>0) {
+        for (i in 1:length(rtls_to_download)) {
+          DownloadMissingFile(rtls_to_download[i], paste0(input_dir,year,"/"), maiac_ftp_url)
+        }
+      }
+      
+      # retrieve fname again
+      fname = GetFilenameVec(type, input_dir, tile, year, day)
+    }
+    
+    # if the variable is empty
+    if (length(fname)==0) {
+      
+      # log the bad file
+      for (i in 1:length(rtls_match)) {
+        #line = paste(obs, year, day[length(day)], tile, sep=",")
+        line = paste(rtls_match[i], sep=",")
+        write(line, file=paste0(output_dir,"missing_files.txt"), append=TRUE)
+      }
+      
+      # load a brick of 9 nan bands (equivalent to band1-8 and number of pixels)
+      b = brick(lapply(c(1:9), FUN=function(x) raster(paste0(nan_tiles_dir,"nantile.",tile,".tif"))))
+      
+      # save the nan tile as the processed tile
+      writeRaster(b, filename=paste0(output_dir, composite_fname, ".", tile, ".", year, day[length(day)], ".tif"), format="GTiff", datatype='INT2S', overwrite=TRUE)
+      
+      # message
+      print(paste0(Sys.time(), ": Couldn't find ", obs ," tile ", tile, ", year ", year, ", and day ", day[length(day)],". Going to next iteration..."))
+      
+      # go to the next iteration
+      result = FALSE
+    }
   }
   
   # return
@@ -222,8 +282,9 @@ DownloadMissingFile = function(fname, directory, maiac_ftp_url) {
     line = fname
     write(line, file=paste0(output_dir,"download_fail.txt"), append=TRUE)
   } else {
-    print(paste0(Sys.time(), ": Download sucess: ",fname))
+    dir.create(file.path(directory), showWarnings = FALSE)
     writeBin(tmp_file, con=paste0(directory,fname))
+    print(paste0(Sys.time(), ": Download sucess: ",fname))
   }
 }
 
