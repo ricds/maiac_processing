@@ -47,6 +47,9 @@ library(compiler)
 enableJIT(3)
 enableJIT(3)
 
+# remove temporary files older than 1 hour
+removeTmpFiles(h=1)
+
 
 # LOAD FUNCTIONS AND INITIALIZE VARIABLES ---------------------------------
 
