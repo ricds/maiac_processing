@@ -366,7 +366,10 @@ ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_c
       
       # retrieve one sub-data set each time
       for (j in 1:length(sds_to_retrieve)) { #sprintf("%02d",sds_to_retrieve[j])
-        gdal_translate(sds_list[as.numeric(sds_to_retrieve[j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve[j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve[j]))
+        if (any(as.numeric(sds_to_retrieve[j]) == c(15,16))) {
+          gdal_translate(sds_list[as.numeric(sds_to_retrieve[j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve[j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve[j]), a_nodata=-99999)
+        } else
+          gdal_translate(sds_list[as.numeric(sds_to_retrieve[j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve[j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve[j]))
       }
 
       # check if file exists after converting
@@ -382,7 +385,10 @@ ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_c
         #if ((any(file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve,".tif"))) | any(file.exists(paste0(output_dir,tmp_dir,x1,"_",suf5,".tif")))) & try_count < 2) {
           # try to convert again
           for (j in 1:length(sds_to_retrieve)) { #sprintf("%02d",sds_to_retrieve[j])
-            gdal_translate(sds_list[as.numeric(sds_to_retrieve[j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve[j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve[j]))
+            if (any(as.numeric(sds_to_retrieve[j]) == c(15,16))) {
+              gdal_translate(sds_list[as.numeric(sds_to_retrieve[j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve[j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve[j]), a_nodata=-99999)
+            } else
+              gdal_translate(sds_list[as.numeric(sds_to_retrieve[j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve[j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve[j]))
           }
           
           # counter
@@ -406,7 +412,10 @@ ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_c
           
           # try to convert again
           for (j in 1:length(sds_to_retrieve)) { #sprintf("%02d",sds_to_retrieve[j])
-            gdal_translate(sds_list[as.numeric(sds_to_retrieve[j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve[j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve[j]))
+            if (any(as.numeric(sds_to_retrieve[j]) == c(15,16))) {
+              gdal_translate(sds_list[as.numeric(sds_to_retrieve[j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve[j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve[j]), a_nodata=-99999)
+            } else
+              gdal_translate(sds_list[as.numeric(sds_to_retrieve[j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve[j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve[j]))
           }
           
           # count
