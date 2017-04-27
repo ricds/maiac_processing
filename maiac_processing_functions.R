@@ -537,7 +537,10 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
 
   # function to normalize
   ff = function(BRFi, kLi, kVi, kGi, FVi, FGi) {
-    return(BRFi * (kLi - (0.04578*kVi) - (1.10003*kGi))/(kLi + (FVi*kVi) + (FGi*kGi)))
+    #return(BRFi * (kLi - (0.04578*kVi) - (1.10003*kGi))/(kLi + (FVi*kVi) + (FGi*kGi)))
+    a = BRFi * {kLi - {0.04578*kVi} - {1.10003*kGi}}/{kLi + {FVi*kVi} + {FGi*kGi}}
+    a[a<0 | a>1]=NA
+    a
   }
   
   ff = cmpfun(ff)
@@ -553,12 +556,14 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
     print(paste0(Sys.time(), ": Normalizing brf iteration ",i," from ",length(BRF)))
     
     # set parameters, interpolate the 5km to 1 km by nearest neighbor
-    BRFi = subset(BRF[[i]],1:8)
     FVi = disaggregate(FV[[i]], fact=c(5,5))
-    FGi = disaggregate(FG[[i]], fact=c(5,5))
+    
+    # check if FVi is available
+    if (is.na(minValue(FVi)) & is.na(maxValue(FVi)))
+      return(0)
     
     # identify which tile is the given i data and set the parameters to the tile
-    img_day = as.numeric(substr(names(FGi),22,24))
+    img_day = as.numeric(substr(names(FVi),22,24))
     
     # get rtls days that are lower than image day, and that are near the image day (12 days is an arbitrary number), get always the lowest rlts day (index 1)
     idx = which(img_day <= rtls_day_vec & abs(rtls_day_vec - img_day) <= 12)[1]
@@ -569,16 +574,9 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
       line = paste0("Tile: ", tile,", Year: ", year,", Image day: ", img_day,", RTLS day: ", rtls_day_vec[idx])
       write(line,file=paste0(output_dir, "processed_closest_rtls.txt"), append=TRUE)
     }
-    
-    # get values
-    kLi = kL[[idx]]
-    kVi = kV[[idx]]
-    kGi = kG[[idx]]
-    
+
     # calculate brf nadir
-    #c(overlay(BRFi, kLi, kVi, kGi, FVi, FGi, fun=ff))
-    tmp = overlay(BRFi, kLi, kVi, kGi, FVi, FGi, fun=ff)
-    c(FilterValOutRangeToNA(tmp, 0, 1))
+    c(overlay(subset(BRF[[i]],1:8), kL[[idx]], kV[[idx]], kG[[idx]], FVi, FGi = disaggregate(FG[[i]], fact=c(5,5)), fun=ff))
   }
   
   # finish cluster
@@ -587,11 +585,15 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   # unlist the results to get a correct output
   BRFn = unlist(BRFn)
   
-  # verify if layers are all NA and delete
+  # remove the layers without data from BRFn
   idx_vec = vector()
   for (i in 1:length(BRFn)) {
-    if (all(is.na(minValue(BRFn[[i]]))) & all(is.na(maxValue(BRFn[[i]]))))
+    if (typeof(BRFn[[i]])=="double") {
       idx_vec = c(idx_vec,i)
+    } else {
+      if (all(is.na(minValue(BRFn[[i]]))) & all(is.na(maxValue(BRFn[[i]]))))
+        idx_vec = c(idx_vec,i)
+    }
   }
   if (length(idx_vec)>0)
     BRFn = BRFn[-c(idx_vec)]
