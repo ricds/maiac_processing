@@ -43,7 +43,6 @@ library(compiler)  #install.packages("compiler")
 library(Rcpp)  #install.packages("Rcpp")
 
 # pre-compile code to try to speed things up - not sure if it works
-library(compiler)
 enableJIT(3)
 enableJIT(3)
 
