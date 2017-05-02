@@ -47,7 +47,7 @@ enableJIT(3)
 enableJIT(3)
 
 # remove temporary files older than 1 hour
-removeTmpFiles(h=1)
+removeTmpFiles(h=2)
 
 
 # LOAD FUNCTIONS AND INITIALIZE VARIABLES ---------------------------------
