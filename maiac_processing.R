@@ -43,7 +43,7 @@ library(rstudioapi)  #install.packages("rstudioapi")
 library(compiler)  #install.packages("compiler")
 library(Rcpp)  #install.packages("Rcpp")
 library(itertools)  #install.packages("itertools")
-library(median2rcpp)  # download.file("https://www.dropbox.com/s/a3sbs6er4salr87/median2rcpp_0.1.0.zip?raw=1", destfile = "median2rcpp_0.1.0.zip", mode="wb")  # system({'R CMD INSTALL "median2rcpp_0.1.0.zip"'})
+library(median2rcpp)  # download.file("https://www.dropbox.com/s/chneec889dl0nck/median2rcpp_0.1.0.tar.gz?raw=1", destfile = "median2rcpp_0.1.0.tar.gz", mode="wb")  # system({'R CMD INSTALL "median2rcpp_0.1.0.tar.gz"'})
 
 # pre-compile code to try to speed things up - not sure if it works
 enableJIT(3)
