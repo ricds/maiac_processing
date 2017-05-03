@@ -48,7 +48,7 @@ library(median2rcpp)  # install.packages("https://www.dropbox.com/s/a3sbs6er4sal
 enableJIT(3)
 enableJIT(3)
 
-# remove temporary files older than 1 hour
+# remove temporary files older than 2 hours
 removeTmpFiles(h=2)
 
 
