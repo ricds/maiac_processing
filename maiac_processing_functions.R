@@ -797,6 +797,8 @@ FilterEA = function(raster_brick, product_fname, output_dir, tmp_dir) {
 
 # function to reorder the brick list per band instead of per date
 ReorderBrickPerBand = function(raster_brick) {
+  #raster_brick = nadir_brf_reflectance
+
   # new list
   y = list()
   
@@ -813,7 +815,7 @@ ReorderBrickPerBand = function(raster_brick) {
       y[[j]] = addLayer(y[[j]],raster_brick[[i]][[j]])
     }
   }
-  
+
   # return
   return(y)
 }
