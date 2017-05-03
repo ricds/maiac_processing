@@ -797,22 +797,21 @@ FilterEA = function(raster_brick, product_fname, output_dir, tmp_dir) {
 
 # function to reorder the brick list per band instead of per date
 ReorderBrickPerBand = function(raster_brick) {
-  # new list
-  y = list()
+  # measure time
+  t1 = mytic()
+  
+  # inititate list
+  y = vector("list",8)
   
   # loop through bands
-  for (j in 1:nlayers(raster_brick[[1]])) {
-    # message
-    print(paste0(Sys.time(), ": Re-ordering brick per band ",j," from ",nlayers(raster_brick[[1]])))
-    
-    # create brick
-    y[[j]] = brick()
-    
-    # loop through dates filling the y
-    for (i in 1:length(raster_brick)) {
-      y[[j]] = addLayer(y[[j]],raster_brick[[i]][[j]])
-    }
-  }
+  for (i in 1:8)
+    y[[i]] = lapply(raster_brick, FUN=function(x) subset(x,i))
+  
+  # measure time
+  t2 = mytoc(t1)
+  
+  # message
+  print(paste0(Sys.time(), ": Calculating median finished in ", t2))
   
   # return
   return(y)
