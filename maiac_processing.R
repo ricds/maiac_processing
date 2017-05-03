@@ -20,6 +20,7 @@
 ## 1) It is needed to have GDAL installed on the computer. You can get that by installing some GIS software like QGIS or a repository like https://trac.osgeo.org/osgeo4w/
 ## 2) A config file named exactly "config.txt" must exist in the script folder. A example file is provided.
 ## 3) At this momment the script tries to process all MAIAC time series and there is no way to specify a begin or end date. However it is possible to a test with a single composite using the composite_test variable in the "config.txt"
+## 4) It is necessary to install the median2rcpp library "by hand"
 ##
 ## Notes to self:
 ## sds_name = c("sur_refl", "Sigma_BRFn", "Snow_Fraction", "Snow_Grain_Diameter", "Snow_Fit", "Status_QA", "sur_refl_500m", "cosSZA", "cosVZA", "RelAZ", "Scattering_Angle", "Glint_Angle", "SAZ", "VAZ", "Fv", "Fg")
@@ -42,7 +43,7 @@ library(rstudioapi)  #install.packages("rstudioapi")
 library(compiler)  #install.packages("compiler")
 library(Rcpp)  #install.packages("Rcpp")
 library(itertools)  #install.packages("itertools")
-library(median2rcpp)  # install.packages("https://www.dropbox.com/s/a3sbs6er4salr87/median2rcpp_0.1.0.zip?raw=1")  #download.file("https://www.dropbox.com/s/a3sbs6er4salr87/median2rcpp_0.1.0.zip?raw=1", destfile = "median2rcpp_0.1.0.zip", mode="wb")
+library(median2rcpp)  # download.file("https://www.dropbox.com/s/a3sbs6er4salr87/median2rcpp_0.1.0.zip?raw=1", destfile = "median2rcpp_0.1.0.zip", mode="wb")  # system({'R CMD INSTALL "median2rcpp_0.1.0.zip"'})
 
 # pre-compile code to try to speed things up - not sure if it works
 enableJIT(3)
