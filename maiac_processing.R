@@ -41,6 +41,8 @@ library(doParallel)  #install.packages("doParallel")
 library(rstudioapi)  #install.packages("rstudioapi")
 library(compiler)  #install.packages("compiler")
 library(Rcpp)  #install.packages("Rcpp")
+library(itertools)  #install.packages("itertools")
+library(median2rcpp)  # install.packages("https://www.dropbox.com/s/a3sbs6er4salr87/median2rcpp_0.1.0.zip?raw=1")  #download.file("https://www.dropbox.com/s/a3sbs6er4salr87/median2rcpp_0.1.0.zip?raw=1", destfile = "median2rcpp_0.1.0.zip", mode="wb")
 
 # pre-compile code to try to speed things up - not sure if it works
 enableJIT(3)
@@ -164,7 +166,7 @@ foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"
   rtls_kvol = LoadMAIACFiles(parameter_fname, output_dir, tmp_dir, "Kvol")
   rtls_kgeo = LoadMAIACFiles(parameter_fname, output_dir, tmp_dir, "Kgeo")
   
-  # 4) filter bad or fill values from the data
+  # 4) filter bad or fill values from the data, don't need to filter anything anymore, because it's now filtering the bad values while openning in gdal_translate
   # for Fv and Fg, the -99999 is a fill value and should be removed
   #brf_fv = FilterValEqualToNA(brf_fv, -99999)
   #brf_fg = FilterValEqualToNA(brf_fg, -99999)
@@ -194,7 +196,7 @@ foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"
   
   # 8) calculate the median of each pixel using the remaining (best) pixels, and return a brick with 9 rasters (1-8 band, and no_samples)
   # Couldn't implement multi-thread by clusterR (raster package) or doParallel, probably due to memory issues... single processing takes ~4min, which is not much
-  median_brf_reflectance = CalcMedianBRF(nadir_brf_reflectance_per_band)
+  median_brf_reflectance = CalcMedianBRF(nadir_brf_reflectance_per_band, no_cores, log_fname, output_dir, tmp_dir)
   rm(list = c("nadir_brf_reflectance_per_band"))
   
   # 9) plot a preview image of the composite and save it on the disk

@@ -821,22 +821,22 @@ ReorderBrickPerBand = function(raster_brick) {
 ReorderBrickPerBand = cmpfun(ReorderBrickPerBand)
 
 # funcao de mediana em C++
-cppFunction("
-  double median2(std::vector<double> x){
-            double median;
-            size_t size = x.size();
-            sort(x.begin(), x.end());
-            if (size  % 2 == 0){
-            median = (x[size / 2 - 1] + x[size / 2]) / 2.0;
-            }
-            else {
-            median = x[size / 2];
-            }
-            return median;
-            }")
+# cppFunction("
+#   double median2(std::vector<double> x){
+#             double median;
+#             size_t size = x.size();
+#             sort(x.begin(), x.end());
+#             if (size  % 2 == 0){
+#             median = (x[size / 2 - 1] + x[size / 2]) / 2.0;
+#             }
+#             else {
+#             median = x[size / 2];
+#             }
+#             return median;
+#             }")
 
 # function to merge the data from 8-day time span into one composite file using the median value
-CalcMedianBRF = function(raster_brick_per_band) {
+CalcMedianBRF = function(raster_brick_per_band, no_cores, log_fname, output_dir, tmp_dir) {
   #raster_brick_per_band = nadir_brf_reflectance_per_band
 
   # message
@@ -856,25 +856,44 @@ CalcMedianBRF = function(raster_brick_per_band) {
     }
   }
   
+  # compile (maybe it's faster)
   CalcMedianAndN = cmpfun(CalcMedianAndN)
   
-  # list to put the results
-  median_raster_brick_per_band = list()
-
-  # for each band
-  for (i in 1:length(raster_brick_per_band)) {
+  # rename the first layer so we can identify the bands inside the foreach/iterator
+  for (i in 1:8)
+    names(raster_brick_per_band[[i]])[1] = i
+  
+  # create the iterator object with the raster brick
+  myit = iter(obj = raster_brick_per_band)
+  
+  # Initiate cluster
+  cl = parallel::makeCluster(no_cores, outfile=log_fname)
+  registerDoParallel(cl)
+  objects_to_export = c("CalcMedianAndN", "output_dir", "tmp_dir")
+  
+  # for each band, iterate through myit so each band is passed to one core
+  foreach(i = myit, .packages=c("raster","median2rcpp"), .export=objects_to_export, .errorhandling="remove") %dopar% {
     # message
-    print(paste0(Sys.time(), ": Calculating median per band ",i," from ",length(raster_brick_per_band)))
-
+    #print(paste0(Sys.time(), ": Calculating median per band ",i," from ",length(raster_brick_per_band)))
+  
     # calc median, if i == 1 save the number of pixels, otherwise just save the values
-    if (i == 1) {
-      median_raster_brick_per_band[[i]] = calc(raster_brick_per_band[[i]], fun=CalcMedianAndN)
+    if (names(i)[1]=="X1") {
+      writeRaster(round(calc(i, fun=CalcMedianAndN)*10000,0), filename=paste0(output_dir, tmp_dir, "Band_",names(i)[1],".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
     } else
-      median_raster_brick_per_band[[i]] = calc(raster_brick_per_band[[i]], fun=CalcMedianAndN)[[1]]
-  }
+      writeRaster(round(calc(i, fun=CalcMedianAndN)[[1]]*10000,0), filename=paste0(output_dir, tmp_dir, "Band_",names(i)[1],".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
     
-  # only bands
-  median_raster_brick_per_band=brick(c(lapply(median_raster_brick_per_band,FUN=subset, subset=1),median_raster_brick_per_band[[1]][[2]]))
+    # return 0 to the foreach
+    c(0)
+  }
+  
+  # finish cluster
+  stopCluster(cl)
+  
+  # open the rasters and make a brick
+  b1 = brick(paste0(output_dir, tmp_dir, "Band_X",1,".tif"))
+  median_raster_brick_per_band = stack(c(b1[[1]],paste0(output_dir, tmp_dir, "Band_X",c(2:8),".tif"),b1[[2]]))
+  
+  # put a name to the bands
   names(median_raster_brick_per_band)=c("band1","band2","band3","band4","band5","band6","band7","band8","no_samples")
   
   # measure time
@@ -889,18 +908,16 @@ CalcMedianBRF = function(raster_brick_per_band) {
 
 CalcMedianBRF = cmpfun(CalcMedianBRF)
 
-# function to write the processed file to disk while applying a factor of 10000 to bands 1-8 to reduce disk space usage
+# function to write the processed file to disk, don't need to apply factors anymore, because we're already applying it on median
 SaveProcessedTileComposite = function(medianBRF, output_dir, composite_fname, tile, year, day) {
   # factors for each band
-  #factors = c(10000,10000,10000,10000,10000,10000,10000,10000,1)
-  factors = c(10000,10000,10000,10000,10000,10000,10000,10000,10000)
+  #factors = c(10000,10000,10000,10000,10000,10000,10000,10000,10000)
   
   # apply factors
-  b = brick(lapply(c(1:9),FUN=function(x) round(unstack(medianBRF)[[x]]*factors[x],0)))
+  #b = brick(lapply(c(1:9),FUN=function(x) round(unstack(medianBRF)[[x]]*factors[x],0)))
   
   # write to file
-  writeRaster(b, filename=paste0(output_dir,composite_fname,".",tile,".",year, day[length(day)],".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
-  #writeRaster(medianBRF, filename=paste0(output_dir,tmp_dir,"Processed.",tile,".tif"), format="GTiff", overwrite=TRUE)
+  writeRaster(medianBRF, filename=paste0(output_dir,composite_fname,".",tile,".",year, day[length(day)],".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
   
   # message
   print(paste0(Sys.time(), ": Tile composite was saved: ",composite_fname,".",tile,".",year, day[length(day)],".tif"))
