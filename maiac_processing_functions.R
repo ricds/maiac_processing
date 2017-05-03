@@ -866,7 +866,7 @@ CalcMedianBRF = function(raster_brick_per_band, no_cores, log_fname, output_dir,
   myit = iter(obj = raster_brick_per_band)
   
   # Initiate cluster
-  cl = parallel::makeCluster(no_cores, outfile=log_fname)
+  cl = parallel::makeCluster(min(8, no_cores), outfile=log_fname)
   registerDoParallel(cl)
   objects_to_export = c("CalcMedianAndN", "output_dir", "tmp_dir")
   
