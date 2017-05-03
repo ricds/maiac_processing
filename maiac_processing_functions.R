@@ -330,8 +330,8 @@ ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_c
     sds_suffix = c(":grid1km:Kiso",":grid1km:Kvol",":grid1km:Kgeo",":grid1km:sur_albedo",":UpdateDay")
   
   # parallel method
-  require(foreach)
-  require(doParallel)
+  #require(foreach)
+  #require(doParallel)
   
   # Initiate cluster
   cl = parallel::makeCluster(no_cores, outfile=log_fname)
