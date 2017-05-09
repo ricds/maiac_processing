@@ -29,8 +29,9 @@ IsTileCompositeProcessed = function(composite_fname, tile, year, day, output_dir
   # set escape variable default
   result = FALSE
   
-  # check if tile composite exists
-  if (file.exists(paste0(output_dir,composite_fname,".",tile,".",year,day[length(day)],".tif"))) {
+  # check if tile composite exists, check just band 1 because the rest is supposed to be there aswell
+  if (file.exists(paste0(output_dir,composite_fname,".",tile,".",year,day[length(day)],".",band_names[1],".tif"))) {
+  #if (file.exists(paste0(output_dir,composite_fname,".",tile,".",year,day[length(day)],".tif"))) {
     # message
     print(paste0(Sys.time(), ": Tile composite ",paste0(composite_fname,".",tile,".",year,day[length(day)],".tif")," is already processed, going to the next iteration."))
     
@@ -75,7 +76,8 @@ IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs
     b = brick(lapply(c(1:9), FUN=function(x) raster(paste0(nan_tiles_dir,"nantile.",tile,".tif"))))
     
     # save the nan tile as the processed tile
-    writeRaster(b, filename=paste0(output_dir, composite_fname, ".", tile, ".", year, day[length(day)], ".tif"), format="GTiff", datatype='INT2S', overwrite=TRUE)
+    #writeRaster(b, filename=paste0(output_dir, composite_fname, ".", tile, ".", year, day[length(day)], ".tif"), format="GTiff", datatype='INT2S', overwrite=TRUE)
+    SaveProcessedTileComposite(b, output_dir, composite_fname, tile, year, day)
     
     # message
     print(paste0(Sys.time(), ": Couldn't find ", obs ," tile ", tile, ", year ", year, ", and day ", day[length(day)],". Going to next iteration..."))
@@ -160,7 +162,8 @@ IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs
       b = brick(lapply(c(1:9), FUN=function(x) raster(paste0(nan_tiles_dir,"nantile.",tile,".tif"))))
       
       # save the nan tile as the processed tile
-      writeRaster(b, filename=paste0(output_dir, composite_fname, ".", tile, ".", year, day[length(day)], ".tif"), format="GTiff", datatype='INT2S', overwrite=TRUE)
+      #writeRaster(b, filename=paste0(output_dir, composite_fname, ".", tile, ".", year, day[length(day)], ".tif"), format="GTiff", datatype='INT2S', overwrite=TRUE)
+      SaveProcessedTileComposite(b, output_dir, composite_fname, tile, year, day)
       
       # message
       print(paste0(Sys.time(), ": Couldn't find ", obs ," tile ", tile, ", year ", year, ", and day ", day[length(day)],". Going to next iteration..."))
@@ -918,9 +921,14 @@ SaveProcessedTileComposite = function(medianBRF, output_dir, composite_fname, ti
   # apply factors
   #b = brick(lapply(c(1:9),FUN=function(x) round(unstack(medianBRF)[[x]]*factors[x],0)))
   
-  # write to file
-  writeRaster(medianBRF, filename=paste0(output_dir,composite_fname,".",tile,".",year, day[length(day)],".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
+  # name of the bands
+  band_names = c("band1","band2","band3","band4","band5","band6","band7","band8","no_samples")
   
+  # write to file
+  for (i in 1:9) {
+    writeRaster(medianBRF[[i]], filename=paste0(output_dir,composite_fname,".",tile,".",year, day[length(day)],".",band_names[i],".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
+  }
+    
   # message
   print(paste0(Sys.time(), ": Tile composite was saved: ",composite_fname,".",tile,".",year, day[length(day)],".tif"))
 }

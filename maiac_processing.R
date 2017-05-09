@@ -177,6 +177,12 @@ foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"
   nadir_brf_reflectance = ConvertBRFNadir(brf_reflectance, brf_fv, brf_fg, rtls_kiso, rtls_kvol, rtls_kgeo, tile, year, output_dir, no_cores, log_fname)
   rm(list = c("brf_reflectance", "brf_fv", "brf_fg", "rtls_kiso", "rtls_kvol", "rtls_kgeo"))
   
+  # test if nadir_brf_reflectance is empty, and return nan tile if it is true
+  if (length(nadir_brf_reflectance)) {
+    SaveProcessedTileComposite(nan_tile, output_dir, composite_fname, tile, year, day)
+    return(0)
+  }
+  
   # 6) (optional) load QA layers, create a mask for each date excluding bad pixels (possibly cloud, adjacent cloud, cloud shadows, etc.) and apply the mask
   # remove pixels such as: possibly cloud, cloud adjacent, cloud shadow, etc.
   if (is_qa_filter) {
