@@ -178,7 +178,7 @@ foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"
   rm(list = c("brf_reflectance", "brf_fv", "brf_fg", "rtls_kiso", "rtls_kvol", "rtls_kgeo"))
   
   # test if nadir_brf_reflectance is empty, and return nan tile if it is true
-  if (length(nadir_brf_reflectance)) {
+  if (length(nadir_brf_reflectance) == 0) {
     SaveProcessedTileComposite(nan_tile, output_dir, composite_fname, tile, year, day)
     return(0)
   }
