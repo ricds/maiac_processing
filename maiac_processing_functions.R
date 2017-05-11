@@ -1078,3 +1078,8 @@ mytoc = function(mt) {
   time.taken <- paste0(round(as.numeric(difftime(end.time,mt,units = "mins")),6), " min")
   return(time.taken)
 }
+
+# function to return the date from a day of year (doy) and respective year
+DoyYear2Date = function(x,y) {
+  return(as.Date(x, origin = paste0(y-1,"-12-31")))
+}
