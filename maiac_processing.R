@@ -109,6 +109,7 @@ loop_mat = CreateLoopMat(day_mat, composite_no, input_dir_vec, tile_vec, composi
 f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"), .export=ls(.GlobalEnv), .errorhandling="remove") %do% {
   
   # message
+  print("...")
   print(paste0(Sys.time(), ": Start processing a new composite..."))
   
   # measure time

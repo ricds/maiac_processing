@@ -936,7 +936,7 @@ SaveProcessedTileComposite = function(medianBRF, output_dir, composite_fname, ti
   }
     
   # message
-  print(paste0(Sys.time(), ": Tile composite was saved: ",composite_fname,".",tile,".",year, day[length(day)],".tif"))
+  print(paste0(Sys.time(), ": Tile composite was saved: ",composite_fname,".",tile,".",year, day[length(day)]))
 }
 
 # function to write the processed file to disk while applying a factor of 10000 to bands 1-8 to reduce disk space usage
