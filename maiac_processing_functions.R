@@ -14,7 +14,7 @@ IsCompositeProcessed = function(composite_fname, year, day, output_dir) {
   # check if composite exists
   if (file.exists(paste0(output_dir,composite_fname,"_",year,day[length(day)],".tif"))) {
     # message
-    print(paste0(Sys.time(), ": Composite ",paste0(composite_fname,"_",year,day[length(day)],".tif")," is already processed, going to the next iteration."))
+    print(paste0(Sys.time(), ": Composite ",paste0(composite_fname,"_",year,day[length(day)])," is already processed, going to the next iteration."))
     
     # go to the next iteration
     result = TRUE
@@ -36,7 +36,7 @@ IsTileCompositeProcessed = function(composite_fname, tile, year, day, output_dir
   if (file.exists(paste0(output_dir,composite_fname,".",tile,".",year,day[length(day)],".",band_names[1],".tif"))) {
   #if (file.exists(paste0(output_dir,composite_fname,".",tile,".",year,day[length(day)],".tif"))) {
     # message
-    print(paste0(Sys.time(), ": Tile composite ",paste0(composite_fname,".",tile,".",year,day[length(day)],".tif")," is already processed, going to the next iteration."))
+    print(paste0(Sys.time(), ": Tile composite ",paste0(composite_fname,".",tile,".",year,day[length(day)])," is already processed, going to the next iteration."))
     
     # go to the next iteration
     result = TRUE
