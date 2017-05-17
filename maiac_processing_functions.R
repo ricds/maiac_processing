@@ -29,6 +29,9 @@ IsTileCompositeProcessed = function(composite_fname, tile, year, day, output_dir
   # set escape variable default
   result = FALSE
   
+  # name of the bands
+  band_names = c("band1","band2","band3","band4","band5","band6","band7","band8","no_samples")
+  
   # check if tile composite exists, check just band 1 because the rest is supposed to be there aswell
   if (file.exists(paste0(output_dir,composite_fname,".",tile,".",year,day[length(day)],".",band_names[1],".tif"))) {
   #if (file.exists(paste0(output_dir,composite_fname,".",tile,".",year,day[length(day)],".tif"))) {
