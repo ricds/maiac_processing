@@ -77,13 +77,13 @@ nan_tiles_dir = paste0(process_dir, "MAIAC_NanTiles/")
 tile_preview_dir = paste0(process_dir, "MAIAC_PreviewTiles/")
 
 # create preview directory if it doesnt exist
-dir.create(file.path(tile_preview_dir), showWarnings = FALSE)
+dir.create(file.path(tile_preview_dir), showWarnings = FALSE, recursive=T)
 
 # create nan tiles directory if it doesnt exist
-dir.create(file.path(nan_tiles_dir), showWarnings = FALSE)
+dir.create(file.path(nan_tiles_dir), showWarnings = FALSE, recursive=T)
 
 # create processed composites/tiles directory if it doesnt exist
-dir.create(file.path(output_dir), showWarnings = FALSE)
+dir.create(file.path(output_dir), showWarnings = FALSE, recursive=T)
 
 # product name MAIACTBRF, MAIACABRF, MAIACRTLS, don't change this
 product = c("MAIACTBRF","MAIACABRF")
