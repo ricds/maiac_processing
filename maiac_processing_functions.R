@@ -143,7 +143,7 @@ IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs
       # try to download the missing rtls
       if (length(rtls_to_download)>0) {
         for (i in 1:length(rtls_to_download)) {
-          DownloadMissingFile(rtls_to_download[i], paste0(input_dir,year,"/"), maiac_ftp_url)
+          DownloadMissingFile(rtls_to_download[i], paste0(input_dir,year,"/"), maiac_ftp_url, output_dir)
         }
       }
       
@@ -254,7 +254,7 @@ FilterProductTilesbyRTLSTiles = function(product_fname, parameter_fname, output_
 }
 
 # function to download a missing file while is processing
-DownloadMissingFile = function(fname, directory, maiac_ftp_url) {
+DownloadMissingFile = function(fname, directory, maiac_ftp_url, output_dir) {
   #fname = x[i]
   # example file: "MAIACABRF.h01v01.20132171720.hdf"
   # example: ftp://maiac@dataportal.nccs.nasa.gov/DataRelease/SouthAmerica/h00v00/2000/MAIACRTLS.h00v00.2000096.hdf
@@ -415,7 +415,7 @@ ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_c
           print(paste0(Sys.time(), ": Error while converting file ",i," from ",length(x)," -> ",x1))
           
           # download the missing file
-          DownloadMissingFile(x1, paste0(input_dir,dirname(x[i]),"/"), maiac_ftp_url)
+          DownloadMissingFile(x1, paste0(input_dir, dirname(x[i]),"/"), maiac_ftp_url, output_dir)
           
           # try to convert again
           for (j in 1:length(sds_to_retrieve)) { #sprintf("%02d",sds_to_retrieve[j])
