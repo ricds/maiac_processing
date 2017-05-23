@@ -309,93 +309,78 @@ RemoveDirectoryFromFilenameVec = function(product_string) {
   return(product_string)
 }
 
-# function to convert "x" files .HDF to .TIF from an input directory "input_dir" to a temporary output directory "output_dir"/tmp
-ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname, is_ea_filter, is_qa_filter, file_type) {
+# function to convert BRF and RTLS files from .HDF to .TIF from an input directory "input_dir" to a temporary output directory "output_dir"/tmp
+ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname, is_ea_filter, is_qa_filter) {
   # message
   print(paste0(Sys.time(), ": Converting HDFs to TIF in parallel..."))
   
   # measure time
   t1 = mytic()
   
-  # the basic sds to retrieve from product, 1=brf, 15 = fv, 16 = fg, 6=qa_status, 13 = saz
-  # the basic sds to retrieve from parameters, 1, 2, 3 which are Kiso, Kvol and Kgeo
-  if (file_type == "ref") {
-  sds_to_retrieve = c("01","15","16")
+  # create sds_to_retrieve list
+  sds_to_retrieve_brf = c("01","15","16")
   if (is_ea_filter)
-    sds_to_retrieve = c(sds_to_retrieve,"13")
+    sds_to_retrieve_brf = c(sds_to_retrieve_brf,"13")
   if (is_qa_filter)
-    sds_to_retrieve = c(sds_to_retrieve,"06")
-  } else #rtls
-    sds_to_retrieve = c("1","2","3")
+    sds_to_retrieve_brf = c(sds_to_retrieve_brf,"06")
+  sds_to_retrieve_rtls = c("1","2","3")
+  sds_to_retrieve_mat = rbind(matrix(sds_to_retrieve_brf,length(x),3, byrow=T),matrix(sds_to_retrieve_rtls,length(y),3, byrow=T))
   
-  # sds preffix and suffix to make the sds list
+  # create sds_suffix and prefix
   sds_preffix = "HDF4_EOS:EOS_GRID:"
-  if (file_type == "ref") {
-    sds_suffix = c(":grid1km:sur_refl",":grid1km:Sigma_BRFn",":grid1km:Snow_Fraction",":grid1km:Snow_Grain_Diameter",":grid1km:Snow_Fit",":grid1km:Status_QA",":grid500m:sur_refl_500m",":grid5km:cosSZA",":grid5km:cosVZA",":grid5km:RelAZ",":grid5km:Scattering_Angle",":grid5km:Glint_Angle",":grid5km:SAZ",":grid5km:VAZ",":grid5km:Fv",":grid5km:Fg")
-  } else
-    sds_suffix = c(":grid1km:Kiso",":grid1km:Kvol",":grid1km:Kgeo",":grid1km:sur_albedo",":UpdateDay")
-  
-  # parallel method
-  #require(foreach)
-  #require(doParallel)
+  sds_suffix_brf = c(":grid1km:sur_refl",":grid1km:Sigma_BRFn",":grid1km:Snow_Fraction",":grid1km:Snow_Grain_Diameter",":grid1km:Snow_Fit",":grid1km:Status_QA",":grid500m:sur_refl_500m",":grid5km:cosSZA",":grid5km:cosVZA",":grid5km:RelAZ",":grid5km:Scattering_Angle",":grid5km:Glint_Angle",":grid5km:SAZ",":grid5km:VAZ",":grid5km:Fv",":grid5km:Fg")
+  sds_suffix_rtls = c(":grid1km:Kiso",":grid1km:Kvol",":grid1km:Kgeo",":grid1km:sur_albedo",":UpdateDay")
+
+  # merge x and y
+  x = c(x,y)
   
   # Initiate cluster
-  #cl = parallel::makeCluster(no_cores, outfile=log_fname)
   cl = parallel::makeCluster(min(length(x), no_cores))
   registerDoParallel(cl)
-  objects_to_export = c("x", "input_dir", "output_dir", "tmp_dir", "maiac_ftp_url", "DownloadMissingFile", "sds_to_retrieve", "sds_preffix", "sds_suffix")
+  objects_to_export = c("x", "input_dir", "output_dir", "tmp_dir", "maiac_ftp_url", "DownloadMissingFile", "sds_to_retrieve_mat", "sds_preffix", "sds_suffix_brf","sds_suffix_rtls")
 
   # loop through the files
   foreach(i = 1:length(x), .packages=c("raster","gdalUtils","rgdal","RCurl"), .export=objects_to_export, .errorhandling="remove") %dopar% {
-    #i=1
-    
     # adjust output filename in case the product name has folder in the beggining
     x1 = basename(x[i])
-
-    # create list of suffixes for product (suf16) and rtls (suf5)
-    #suf16 = c("01","02","03","04","05","06","07","08","09","10","11","12","13","14","15","16")
-    #suf5 = c("1","2","3","4","5")
 
     # check if x[i] converted tif file exists
     # if it does, just throw some message
     # if it doesnt, try to convert, if it works nice just go on, if it doesnt try to download the tile and process it again
-    if (any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve,".tif")))) {
-    #if (any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve,".tif"))) & any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",suf5,".tif")))) {
+    if (any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif")))) {
       # message
       print(paste0(Sys.time(), ": Converting HDF to TIF file ",i," from ",length(x)," -> ",x1))
-      
-      # try to convert for the first time - retrieve all the sub-datasets
-      #gdal_translate(paste0(input_dir,x[i]), dst_dataset = paste0(output_dir,tmp_dir,x1,".tif"), verbose=F, sds=TRUE)
-      
+
       # get the sds list
       #sds_list = get_subdatasets(paste0(input_dir,x[i]))  # slooooow
-      sds_list = paste0(sds_preffix,paste0(input_dir,x[i]),sds_suffix)  # fast!
+      #sds_list = paste0(sds_preffix,paste0(input_dir,x[i]),sds_suffix)  # fast!
+      if (sds_to_retrieve_mat[i,1] == "01") {
+        sds_list = paste0(sds_preffix,paste0(input_dir,x[i]),sds_suffix_brf)  # fast!
+      } else
+        sds_list = paste0(sds_preffix,paste0(input_dir,x[i]),sds_suffix_rtls)  # fast!
       
       # retrieve one sub-data set each time
-      for (j in 1:length(sds_to_retrieve)) { #sprintf("%02d",sds_to_retrieve[j])
-        if (any(as.numeric(sds_to_retrieve[j]) == c(15,16))) {
-          gdal_translate(sds_list[as.numeric(sds_to_retrieve[j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve[j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve[j]), a_nodata=-99999)
+      for (j in 1:length(sds_to_retrieve_mat[i,])) { #sprintf("%02d",sds_to_retrieve_mat[i,][j])
+        if (any(as.numeric(sds_to_retrieve_mat[i,][j]) == c(15,16))) {
+          gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]), a_nodata=-99999)
         } else
-          gdal_translate(sds_list[as.numeric(sds_to_retrieve[j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve[j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve[j]))
+          gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]))
       }
 
       # check if file exists after converting
       # if it doesn't, it can mean two things: (1) converting was somehow interrupted -> convert again, or (2) HDF is corrupted -> download again
-      #if (!file.exists(paste0(output_dir,tmp_dir,x1,"_01.tif")) & !file.exists(paste0(output_dir,tmp_dir,x1,"_1.tif"))) {
       try_count = 0
-      while (any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve,".tif"))) & try_count < 3) {
-      #while (any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve,".tif"))) & any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",suf5,".tif"))) & try_count < 3) {
+      while (any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif"))) & try_count < 3) {
         
         # option 1, problem in conversion
         # solution: try to convert it again, and test for all files, test this 2 times
-        if (any(file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve,".tif"))) & try_count < 2) {
-        #if ((any(file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve,".tif"))) | any(file.exists(paste0(output_dir,tmp_dir,x1,"_",suf5,".tif")))) & try_count < 2) {
+        if (any(file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif"))) & try_count < 2) {
           # try to convert again
-          for (j in 1:length(sds_to_retrieve)) { #sprintf("%02d",sds_to_retrieve[j])
-            if (any(as.numeric(sds_to_retrieve[j]) == c(15,16))) {
-              gdal_translate(sds_list[as.numeric(sds_to_retrieve[j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve[j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve[j]), a_nodata=-99999)
+          for (j in 1:length(sds_to_retrieve_mat[i,])) { #sprintf("%02d",sds_to_retrieve_mat[i,][j])
+            if (any(as.numeric(sds_to_retrieve_mat[i,][j]) == c(15,16))) {
+              gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]), a_nodata=-99999)
             } else
-              gdal_translate(sds_list[as.numeric(sds_to_retrieve[j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve[j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve[j]))
+              gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]))
           }
           
           # counter
@@ -409,8 +394,7 @@ ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_c
         # option 2, corrupted HDF
         # solution: download again, test download for 5 times
         try_count_download = 0
-        while (any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve,".tif"))) & try_count_download < 5) {
-        #while (any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve,".tif"))) & any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",suf5,".tif"))) & try_count_download < 5) {
+        while (any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif"))) & try_count_download < 5) {
           # message
           print(paste0(Sys.time(), ": Error while converting file ",i," from ",length(x)," -> ",x1))
           
@@ -418,11 +402,11 @@ ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_c
           DownloadMissingFile(x1, paste0(input_dir, dirname(x[i]),"/"), maiac_ftp_url, output_dir)
           
           # try to convert again
-          for (j in 1:length(sds_to_retrieve)) { #sprintf("%02d",sds_to_retrieve[j])
-            if (any(as.numeric(sds_to_retrieve[j]) == c(15,16))) {
-              gdal_translate(sds_list[as.numeric(sds_to_retrieve[j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve[j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve[j]), a_nodata=-99999)
+          for (j in 1:length(sds_to_retrieve_mat[i,])) { #sprintf("%02d",sds_to_retrieve_mat[i,][j])
+            if (any(as.numeric(sds_to_retrieve_mat[i,][j]) == c(15,16))) {
+              gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]), a_nodata=-99999)
             } else
-              gdal_translate(sds_list[as.numeric(sds_to_retrieve[j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve[j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve[j]))
+              gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]))
           }
           
           # count
@@ -430,8 +414,7 @@ ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_c
         }
         
         # check if the file was extracted
-        if (all(file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve,".tif")))) {
-        #if (all(file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve,".tif"))) | all(file.exists(paste0(output_dir,tmp_dir,x1,"_",suf5,".tif")))) {
+        if (all(file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif")))) {
           print(paste0(Sys.time(), ": File ",x1," was downloaded and extracted with sucess. Error avoided (i hope), oh yeah!"))
         }
         
