@@ -341,7 +341,7 @@ ConvertHDF2TIF = function(x, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_c
   
   # Initiate cluster
   #cl = parallel::makeCluster(no_cores, outfile=log_fname)
-  cl = parallel::makeCluster(no_cores)
+  cl = parallel::makeCluster(min(length(x), no_cores))
   registerDoParallel(cl)
   objects_to_export = c("x", "input_dir", "output_dir", "tmp_dir", "maiac_ftp_url", "DownloadMissingFile", "sds_to_retrieve", "sds_preffix", "sds_suffix")
 
@@ -563,7 +563,7 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   
   # Initiate cluster
   #cl = parallel::makeCluster(no_cores, outfile=log_fname)
-  cl = parallel::makeCluster(no_cores)
+  cl = parallel::makeCluster(min(length(BRF), no_cores))
   registerDoParallel(cl)
   objects_to_export = c("BRF", "FV", "FG", "kL", "kV", "kG", "tile", "year", "rtls_day_vec", "ff", "FilterValOutRangeToNA")
   
