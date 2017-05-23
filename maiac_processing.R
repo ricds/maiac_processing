@@ -4,22 +4,21 @@
 ## Author: Ricardo Dal'Agnol da Silva (ricds@hotmail.com)
 ## Date: 2017-02-09
 ##################################################
-## General processing workflow:
-## 1) get filenames from the available products and parameters files for the iteration
-## 2) (parallel computing) convert files from hdf to geotif using gdal_translate
+## The main steps of the processing workflow:
+## 1) get filenames from the available brf and rtls data
+## 2) convert files from hdf to tif using gdal_translate in parallel
 ## 3) load .tif files needed for BRF normalization
-## 4) filter bad or fill values from the data
-## 5) (parallel computing) apply brf normalization to nadir for each date using the respective RTLS parameters or nearest RTLS file, and the eq. from MAIAC documentation: (BRFn = BRF * (kL - 0.04578*kV - 1.10003*kG)/( kL + FV*kV + FG*kG))
-## 6) (optional) load QA layers, create a mask for each date excluding bad pixels (possibly cloud, adjacent cloud, cloud shadows, etc.) and apply the mask
-## 7) (optional) create and apply mask based on extreme sun angles >80 deg.
-## 8) calculate the median of each pixel using the remaining (best) pixels, and return a brick with 9 rasters (1-8 band, and no_samples)
-## 9) plot a preview image of the composite and save it on the disk
-## 10) save the processed composite
+## 4) apply brf normalization in parallel for each date using the respective RTLS parameters or nearest RTLS file, and the equation from MAIAC documentation: (BRFn = BRF * (kL - 0.04578*kV - 1.10003*kG)/( kL + FV*kV + FG*kG))
+## 5) (optional) load QA layers, create a mask for each date excluding bad pixels (possibly cloud, adjacent cloud, cloud shadows, etc.) and apply the mask
+## 6) (optional) create and apply mask based on extreme sun angles >80 deg.
+## 7) calculate the median of each pixel using the available data on each pixel in parallel for each band and return a brick with 9 rasters (1-8 band, and no_samples of band 1)
+## 8) plot a preview image of the composite and save it on the disk
+## 9) save the processed composite - one .tif file per band and no_samples of band1
 ##
-## IMPORTANT:
-## 1) It is needed to have GDAL installed on the computer. You can get that by installing some GIS software like QGIS or a repository like https://trac.osgeo.org/osgeo4w/
-## 2) A config file named exactly "config.txt" must exist in the script folder. A example file is provided.
-## 3) At this momment the script tries to process all MAIAC time series and there is no way to specify a begin or end date. However it is possible to a test with a single composite using the composite_test variable in the "config.txt"
+## IMPORTANT - READ THIS PRIOR TO RUNNING:
+## 1) GDAL must be installed on the computer prior to processing. It can be found in websites like this: https://trac.osgeo.org/osgeo4w/
+## 2) A config file named "config.txt" must exist in the script folder describing the tiles to process and directories. A example file is provided.
+## 3) At this momment the script tries to process all MAIAC time series and there is no way to specify a start or end date. However it is possible to a test with a single composite using the composite_test variable in the "config.txt"
 ## 4) It is necessary to install the median2rcpp library "by hand"
 ##
 ## Notes to self:
@@ -27,6 +26,7 @@
 ## sds_data_type = c("INT16", "INT16", "INT16", "INT16", "INT16", "UINT16","INT16", "INT16", "INT16", "INT16", "INT16", "INT16", "INT16", "INT16", "FLOAT32", "FLOAT32")
 ## sds_parameters_name = c("Kiso", "Kvol", "Kgeo", "sur_albedo", "UpdateDay")
 ## http://www.ctahr.hawaii.edu/grem/mod13ug/sect0005.html, http://glcf.umd.edu/data/modis/
+## to list memory: sort( sapply(ls(),function(x){object.size(get(x))})) 
 ##################################################
 
 # clean environment
@@ -45,7 +45,7 @@ library(Rcpp)  #install.packages("Rcpp")
 library(itertools)  #install.packages("itertools")
 library(median2rcpp)  # download.file("https://www.dropbox.com/s/chneec889dl0nck/median2rcpp_0.1.0.tar.gz?raw=1", destfile = "median2rcpp_0.1.0.tar.gz", mode="wb")  # system({'R CMD INSTALL "median2rcpp_0.1.0.tar.gz"'})
 
-# pre-compile code to try to speed things up - not sure if it works
+# pre-compile code to try to speed things up - not sure if it works - must run the command twice don't know why
 enableJIT(3)
 enableJIT(3)
 
@@ -55,7 +55,7 @@ removeTmpFiles(h=2)
 
 # LOAD FUNCTIONS AND INITIALIZE VARIABLES ---------------------------------
 
-# the folder where the script R functions and config file are placed
+# get the folder where the script R functions and config file are placed
 functions_dir = paste0(dirname(rstudioapi::getActiveDocumentContext()$path),"/")
 
 # load config.txt file that should be in the same directory of the scripts
@@ -147,14 +147,9 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   # 1) get filenames from the available products and parameters files for the iteration
   product_fname = GetFilenameVec(product, input_dir, tile, year, day)
   parameter_fname = GetFilenameVec(parameters, input_dir, tile, year, day)
-  
-  # filter product names by only the product tiles/dates that have RTLS tiles
-  # TODO: remove this function? this function seems to be obsolete now that we process by tile
-  #product_fname = FilterProductTilesbyRTLSTiles(product_fname, parameter_fname, output_dir)
-  
+
   # 2) (parallel computing) convert files from hdf to geotif using gdal_translate
   ConvertHDF2TIF(product_fname, parameter_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname, is_ea_filter, is_qa_filter)
-  #ConvertHDF2TIF(parameter_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname, is_ea_filter, is_qa_filter, "rtls")
   
   # remove directory from filenames, return only the "filenames".hdf
   product_fname = basename(product_fname)
@@ -168,13 +163,7 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   rtls_kvol = LoadMAIACFiles(parameter_fname, output_dir, tmp_dir, "Kvol")
   rtls_kgeo = LoadMAIACFiles(parameter_fname, output_dir, tmp_dir, "Kgeo")
   
-  # 4) filter bad or fill values from the data, don't need to filter anything anymore, because it's now filtering the bad values while openning in gdal_translate
-  # for Fv and Fg, the -99999 is a fill value and should be removed
-  #brf_fv = FilterValEqualToNA(brf_fv, -99999)
-  #brf_fg = FilterValEqualToNA(brf_fg, -99999)
-  #brf_reflectance = FilterBadValues(brf_reflectance, min=0, max=1) # it seems that if you filter the final result from 0 to 1, this step is not needed
-  
-  # 5) (parallel computing) apply brf normalization to nadir for each date using the respective RTLS parameters or nearest RTLS file, and the eq. from MAIAC documentation: (BRFn = BRF * (kL - 0.04578*kV - 1.10003*kG)/( kL + FV*kV + FG*kG))
+  # 4) (parallel computing) apply brf normalization to nadir for each date using the respective RTLS parameters or nearest RTLS file, and the eq. from MAIAC documentation: (BRFn = BRF * (kL - 0.04578*kV - 1.10003*kG)/( kL + FV*kV + FG*kG))
   nadir_brf_reflectance = ConvertBRFNadir(brf_reflectance, brf_fv, brf_fg, rtls_kiso, rtls_kvol, rtls_kgeo, tile, year, output_dir, no_cores, log_fname)
   rm(list = c("brf_reflectance", "brf_fv", "brf_fg", "rtls_kiso", "rtls_kvol", "rtls_kgeo"))
   
@@ -184,7 +173,7 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
     return(0)
   }
   
-  # 6) (optional) load QA layers, create a mask for each date excluding bad pixels (possibly cloud, adjacent cloud, cloud shadows, etc.) and apply the mask
+  # 5 (optional) load QA layers, create a mask for each date excluding bad pixels (possibly cloud, adjacent cloud, cloud shadows, etc.) and apply the mask
   # remove pixels such as: possibly cloud, cloud adjacent, cloud shadow, etc.
   if (is_qa_filter) {
     qa_brick = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "Status_QA")
@@ -193,7 +182,7 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
     rm(list = c("qa_brick","qa_mask"))
   }
   
-  # 7) (optional) create and apply mask based on extreme sun angles >80 deg.
+  # 6) (optional) create and apply mask based on extreme sun angles >80 deg.
   if (is_ea_filter) {
     nadir_brf_reflectance = FilterEA(nadir_brf_reflectance, product_fname, output_dir, tmp_dir)
   }
@@ -202,18 +191,17 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   nadir_brf_reflectance_per_band = ReorderBrickPerBand(nadir_brf_reflectance)
   rm(list = c("nadir_brf_reflectance"))
   
-  # 8) calculate the median of each pixel using the remaining (best) pixels, and return a brick with 9 rasters (1-8 band, and no_samples)
-  # Couldn't implement multi-thread by clusterR (raster package) or doParallel, probably due to memory issues... single processing takes ~4min, which is not much
+  # 7) calculate the median of each pixel using the remaining (best) pixels, and return a brick with 9 rasters (1-8 band, and no_samples of band1)
   median_brf_reflectance = CalcMedianBRF(nadir_brf_reflectance_per_band, no_cores, log_fname, output_dir, tmp_dir)
   rm(list = c("nadir_brf_reflectance_per_band"))
   
-  # 9) plot a preview image of the composite and save it on the disk
+  # 8) plot a preview image of the composite and save it on the disk
   png(filename=paste0(tile_preview_dir,"fig_",composite_fname,"_",tile,"_",year,day[length(day)],".png"), type="cairo", units="cm", width=15, height=15, pointsize=10, res=300)
   par(oma=c(4,4,4,4))
   plot(median_brf_reflectance/10000)
   dev.off()
   
-  # 10) save the processed composite
+  # 9) save the processed composite
   SaveProcessedTileComposite(median_brf_reflectance, output_dir, composite_fname, tile, year, day)
   rm(list = c("median_brf_reflectance"))
   
@@ -238,8 +226,4 @@ stopCluster(cl)
 closeAllConnections()
 
 # message
-print(paste0(Sys.time(), ": Processing is now stopped. Either finished or some problem happened."))
-
-
-# list memory
-#sort( sapply(ls(),function(x){object.size(get(x))})) 
+print(paste0(Sys.time(), ": Processing is now stopped. Either finished or some problem happened. Good luck!"))
