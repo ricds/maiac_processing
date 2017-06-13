@@ -1006,9 +1006,17 @@ CreateDayMatrix = function(composite_no = 8) {
   return(day_mat)
 }
 
-CreateCompositeName = function(composite_no, product, is_qa_filter, is_ea_filter) {
+CreateCompositeName = function(composite_no, product, is_qa_filter, is_ea_filter, view_geometry) {
+  # choose function
+  if (view_geometry == "nadir")
+    view_geometry_str = "Nadir"
+  if (view_geometry == "backscat")
+    view_geometry_str = "Backscat"
+  if (view_geometry == "forwardscat")
+    view_geometry_str = "Forwardscat"
+  
   # base name
-  composite_fname = paste0("SR_Nadir_", composite_no ,"day")
+  composite_fname = paste0("SR_",view_geometry_str,"_", composite_no ,"day")
   
   # which product
   if (length(product)==1) {

@@ -96,7 +96,7 @@ parameters = "MAIACRTLS"
 maiac_ftp_url = "ftp://maiac@dataportal.nccs.nasa.gov/DataRelease/SouthAmerica/"
 
 # define the output base filename
-composite_fname = CreateCompositeName(composite_no, product, is_qa_filter, is_ea_filter)
+composite_fname = CreateCompositeName(composite_no, product, is_qa_filter, is_ea_filter, view_geometry)
 
 # create matrix of days on each composite
 day_mat = CreateDayMatrix(composite_no)
