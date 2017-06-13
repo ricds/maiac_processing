@@ -64,6 +64,9 @@ source(paste0(functions_dir, "config.txt"))
 # load functions
 source(paste0(functions_dir, "maiac_processing_functions.R"))
 
+# create process directory if it doesnt exist
+dir.create(file.path(process_dir), showWarnings = FALSE, recursive=T)
+
 # output directory, the one to export the processed composites
 output_dir = paste0(process_dir, "MAIAC_ProcessedTiles/")
 
