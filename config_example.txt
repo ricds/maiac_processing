@@ -24,3 +24,6 @@ no_cores = 7
 
 # composite to test the script, composite_test = c(number of composite, year), or NaN if no test
 composite_test = NaN
+
+# select view geometry, view_geometry can be one of this: "nadir", "backscat", or "forwardscat"
+view_geometry = "nadir"
