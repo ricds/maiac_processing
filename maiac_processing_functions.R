@@ -514,7 +514,7 @@ FilterValOutRangeToNA = function(x, minArg, maxArg) {
 # to do: arquivo vira float depois da covnersao, transformar em outro formato? (ex. int2s)
 # transf para int2s parece que ferra os valores
 # band values are calculated ok, tested calculating one band separatedely and compared to the batch convert
-ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_cores, log_fname) {
+ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_cores, log_fname, view_geometry) {
   # BRF = brf_reflectance  # (12 bandas por data, 1km)
   # FV = brf_fv  # (1 por data, 5km)
   # FG = brf_fg  # (1 por data, 5km)
@@ -535,14 +535,38 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   }
 
   # function to normalize
-  ff = function(BRFi, kLi, kVi, kGi, FVi, FGi) {
+  ff_nadir = function(BRFi, kLi, kVi, kGi, FVi, FGi) {
     #return(BRFi * (kLi - (0.04578*kVi) - (1.10003*kGi))/(kLi + (FVi*kVi) + (FGi*kGi)))
     a = BRFi * {kLi - {0.04578*kVi} - {1.10003*kGi}}/{kLi + {FVi*kVi} + {FGi*kGi}}
     a[a<0 | a>1]=NA
     a
   }
   
-  ff = cmpfun(ff)
+  # function to normalize backscat
+  ff_backscat = function(BRFi, kLi, kVi, kGi, FVi, FGi) {
+    # For AZ=180, kernels are: backward
+    # Fg = 0.017440045;    Fv=0.22930469;
+    a = BRFi * {kLi + {0.22930469*kVi} + {0.017440045*kGi}}/{kLi + {FVi*kVi} + {FGi*kGi}}
+    a[a<0 | a>1]=NA
+    a
+  }
+  
+  # function to normalize forwardscat
+  ff_forwardscat = function(BRFi, kLi, kVi, kGi, FVi, FGi) {
+    #For AZ=0, kernels are: forward
+    #Fg = -1.6218740;    Fv=-0.12029795;
+    a = BRFi * {kLi - {0.12029795*kVi} - {1.6218740*kGi}}/{kLi + {FVi*kVi} + {FGi*kGi}}
+    a[a<0 | a>1]=NA
+    a
+  }
+  
+  # choose function
+  if (view_geometry == "nadir")
+    ff = cmpfun(ff_nadir)
+  if (view_geometry == "backscat")
+    ff = cmpfun(ff_backscat)
+  if (view_geometry == "forwardscat")
+    ff = cmpfun(ff_forwardscat)
   
   # Initiate cluster
   #cl = parallel::makeCluster(no_cores, outfile=log_fname)
