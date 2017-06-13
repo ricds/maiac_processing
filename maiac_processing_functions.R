@@ -1092,7 +1092,11 @@ mytoc = function(mt) {
   return(time.taken)
 }
 
-# function to return the date from a day of year (doy) and respective year
-DoyYear2Date = function(x,y) {
-  return(as.Date(x, origin = paste0(y-1,"-12-31")))
+# function to return the date from year (x) and day of year (y), or yeardoy (x)
+YearDoy2Date = function(x, y) {
+  if (nchar(x)==7) { # if yeardoy is 7 digit ex. 2000224
+    return(as.Date(as.numeric(substr(x,5,7)), origin = paste0(as.numeric(substr(x,1,4))-1,"-12-31")))
+  } else { # if yeardoy is separated in two variables ex. x=2000, y=224
+    return(as.Date(y, origin = paste0(x-1,"-12-31")))
+  }
 }
