@@ -4,11 +4,11 @@ process_dir = "D:/_MAIAC/"
 # latlon tiles directory, the one where latlon tiles are stored - this files are used to create nan tiles
 latlon_tiles_dir = "D:/_MAIAC/MAIAC_LatLonTiles/"
 
-# raw files input directory, can set up more than one directory
-input_dir_vec = c("D:/h00v01/", "E:/h01v04/", "E:/h01v05/", "E:/h01v06/", "E:/h02v00/", "E:/h02v01/", "E:/h02v02/")
+# vector of tile(s) to process
+tile_vec = c("h01v02", "h01v01", "h00v01", "h00v02", "h01v00", "h01v03", "h02v00", "h02v01", "h02v02", "h02v03", "h03v00", "h03v01", "h03v02", "h03v03", "h03v04", "h03v05", "h04v00", "h04v01", "h04v02", "h04v03", "h00v00", "h00v03", "h01v04", "h01v05", "h01v06", "h02v04", "h02v05")
 
-# tile(s) to process, can set up more than one directory, put in the same order of input_dir_vec
-tile_vec = c("h00v01", "h01v04", "h01v05", "h01v06", "h02v00", "h02v01", "h02v02")
+# vector of directories containing raw files of each tile of tile_vec, can set up more than one directory, this above is an example where each tile has its own folder inside "D:/Maiac_raw_data/"
+input_dir_vec = paste0("D:/Maiac_raw_data/", tile_vec, "/")
 
 # enables filtering by Quality Assessment bits (adjacent clouds and stuff), may reduce number of available pixels
 is_qa_filter = FALSE
@@ -19,11 +19,15 @@ is_ea_filter = FALSE
 # number of days on each composite, should be 8, 16 or 32
 composite_no = 16
 
-# number of cores to use while processing, should use total number of cores minus one, to try to prevent the computer from freezing
-no_cores = 7
+# number of cores to use while processing, it's sometimes recommended to use total number of cores minus one to try to prevent the computer from freezing
+no_cores = 8
 
-# composite to test the script, composite_test = c(number of composite, year), or NaN if no test
-composite_test = NaN
-
-# select view geometry, view_geometry can be one of this: "nadir", "backscat", or "forwardscat"
+# select one of the three pre-configured view geometries normalization, can be one of this: "nadir", "backscat", or "forwardscat"
 view_geometry = "nadir"
+
+# composite to test the script or process files more "manually"
+# composite_test can be "NaN" for no test, or a vector/matrix with columns equal to c(composite day of year, year, tile directory, tile name), where each line corresponds to one composite
+# Obs: this option overrides the normal processing of all time series over tile_vec, and only try to process the indicated composite/year/tile
+composite_test = NaN
+# example of a matrix:
+# composite_test = rbind(cbind(seq(240,352,16), 2013, "/mnt/dados_ricardo/Maiac_raw_data/h02v00/", "h02v00"), cbind(seq(16,128,16), 2014, "/mnt/dados_ricardo/Maiac_raw_data/h02v00/", "h02v00"))
