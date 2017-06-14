@@ -18,7 +18,7 @@
 ## IMPORTANT - READ THIS PRIOR TO RUNNING:
 ## 1) GDAL must be installed on the computer prior to processing. It can be found in websites like this: https://trac.osgeo.org/osgeo4w/
 ## 2) A config file named "config.txt" must exist in the script folder describing the tiles to process and directories. A example file is provided.
-## 3) At this momment the script tries to process all MAIAC time series and there is no way to specify a start or end date. However it is possible to a test with a single composite using the composite_test variable in the "config.txt"
+## 3) At this momment the script tries to process all MAIAC time series and there is no way to specify a start or end date. However it is possible to run specific composite/year/tile using the manual_run variable in the "config.txt"
 ## 4) It is necessary to install the median2rcpp library "by hand"
 ##
 ## Notes to self:
@@ -102,7 +102,7 @@ composite_fname = CreateCompositeName(composite_no, product, is_qa_filter, is_ea
 day_mat = CreateDayMatrix(composite_no)
 
 # create loop matrix containing all the information to iterate
-loop_mat = CreateLoopMat(day_mat, composite_no, input_dir_vec, tile_vec, composite_test)
+loop_mat = CreateLoopMat(day_mat, composite_no, input_dir_vec, tile_vec, manual_run)
 
 
 

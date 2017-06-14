@@ -1043,13 +1043,13 @@ CreateCompositeName = function(composite_no, product, is_qa_filter, is_ea_filter
 }
 
 # function to create loop mat, filtering the start and end dates from loop_mat, depending on composite_no
-CreateLoopMat = function(day_mat, composite_no, input_dir_vec, tile_vec, composite_test) {
+CreateLoopMat = function(day_mat, composite_no, input_dir_vec, tile_vec, manual_run) {
   
-  # check if this is a test and create the loop_mat with the composite number and year
-  if (!any(is.nan(composite_test))) {
-    loop_mat = matrix(0, 1, 4)
-    loop_mat[1, 1:4] = c(composite_test[1], composite_test[2], input_dir_vec, tile_vec)
-  } else {
+  # check if this is a manual run and create the loop_mat with the specific configuration
+  if (any(manual_run != FALSE)) {
+    manual_run[,1] = sprintf("%03d", as.numeric(manual_run[,1]))
+    loop_mat = manual_run
+  } else { # or create a loop matrix containing all time series
     # find the lines in day_mat of first and last composite
     # 64 2000 and 240 2016
     idx_2000 = which(sprintf("%03d", 64) == day_mat, arr.ind = TRUE)[1]

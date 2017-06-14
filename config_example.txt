@@ -25,9 +25,8 @@ no_cores = 8
 # select one of the three pre-configured view geometries normalization, can be one of this: "nadir", "backscat", or "forwardscat"
 view_geometry = "nadir"
 
-# composite to test the script or process files more "manually"
-# composite_test can be "NaN" for no test, or a vector/matrix with columns equal to c(composite day of year, year, tile directory, tile name), where each line corresponds to one composite
-# Obs: this option overrides the normal processing of all time series over tile_vec, and only try to process the indicated composite/year/tile
-composite_test = NaN
-# example of a matrix:
-# composite_test = rbind(cbind(seq(240,352,16), 2013, "/mnt/dados_ricardo/Maiac_raw_data/h02v00/", "h02v00"), cbind(seq(16,128,16), 2014, "/mnt/dados_ricardo/Maiac_raw_data/h02v00/", "h02v00"))
+# run specific composite/year/tile processing instead of normal "all time-series" processing
+# manual_run can be FALSE for normal procedure, or a vector/matrix with columns equal to c(composite day of year, year, tile directory, tile name), where each line corresponds to one composite, for running specific composite/year/tile processing
+# example of matrix:
+# manual_run = rbind(cbind(seq(240,352,16), 2013, "/mnt/dados_ricardo/Maiac_raw_data/h02v00/", "h02v00"), cbind(seq(16,128,16), 2014, "/mnt/dados_ricardo/Maiac_raw_data/h02v00/", "h02v00"))
+manual_run = FALSE
