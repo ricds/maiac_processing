@@ -206,7 +206,10 @@ CreateNanTiles = function(tile, nan_tiles_dir, latlon_tiles_dir) {
     
     # delete tmpnanfiles directory
     unlink(file.path(nan_tiles_dir, "tmpnanfiles/"), recursive=TRUE)
+  } else {
+    r = raster(paste0(nan_tiles_dir,"nantile.",tile,".tif"))
   }
+  return(r)
 }
 
 # function to get filenames of each 8-day product or parameters files from a product "x", from a input directory "input_dir", of a respective "tile", "year" and day vector "day"
@@ -937,6 +940,11 @@ SaveProcessedTileComposite = function(medianBRF, output_dir, composite_fname, ti
   
   # apply factors
   #b = brick(lapply(c(1:9),FUN=function(x) round(unstack(medianBRF)[[x]]*factors[x],0)))
+  
+  # test if number of layers is equal to 1, which means that is a nantile and gotta repeat it 9 times
+  if (dim(medianBRF)[3] == 1) {
+    medianBRF = brick(medianBRF, medianBRF, medianBRF, medianBRF, medianBRF, medianBRF, medianBRF, medianBRF, medianBRF)
+  }
   
   # name of the bands
   band_names = c("band1","band2","band3","band4","band5","band6","band7","band8","no_samples")

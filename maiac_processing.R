@@ -131,7 +131,7 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   day = day_mat[as.numeric(loop_mat[j,1]),]
   
   # create nan rasters for tile in case it is needed
-  CreateNanTiles(tile, nan_tiles_dir, latlon_tiles_dir)
+  nan_tile = CreateNanTiles(tile, nan_tiles_dir, latlon_tiles_dir)
   
   # check if composite processed file already exist, otherwise just skip to next iteration; manual_run overrides this and overwrite files
   if (IsTileCompositeProcessed(composite_fname, tile, year, day, output_dir, manual_run))
