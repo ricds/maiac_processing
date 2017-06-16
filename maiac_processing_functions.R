@@ -1047,7 +1047,8 @@ CreateLoopMat = function(day_mat, composite_no, input_dir_vec, tile_vec, manual_
   
   # check if this is a manual run and create the loop_mat with the specific configuration
   if (any(manual_run != FALSE)) {
-    manual_run[,1] = sprintf("%03d", as.numeric(manual_run[,1]))
+    for (i in 1:dim(manual_run))
+      manual_run[i,1] = which(sprintf("%03d", as.numeric(manual_run[i,1])) == day_mat, arr.ind = TRUE)[1]
     loop_mat = manual_run
   } else { # or create a loop matrix containing all time series
     # find the lines in day_mat of first and last composite
