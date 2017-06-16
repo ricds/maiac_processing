@@ -4,8 +4,8 @@ process_dir = "D:/_MAIAC/"
 # latlon tiles directory, the one where latlon tiles are stored - this files are used to create nan tiles
 latlon_tiles_dir = "D:/_MAIAC/MAIAC_LatLonTiles/"
 
-# vector of tile(s) to process
-tile_vec = c("h01v02", "h01v01", "h00v01", "h00v02", "h01v00", "h01v03", "h02v00", "h02v01", "h02v02", "h02v03", "h03v00", "h03v01", "h03v02", "h03v03", "h03v04", "h03v05", "h04v00", "h04v01", "h04v02", "h04v03", "h00v00", "h00v03", "h01v04", "h01v05", "h01v06", "h02v04", "h02v05")
+# vector of tile(s) to process, Amazon region is first 13 tiles (from h00v01 to h03v02)
+tile_vec = c("h00v01", "h00v02", "h01v00", "h01v01", "h01v02", "h01v03", "h02v00", "h02v01", "h02v02", "h02v03", "h03v00", "h03v01", "h03v02", "h03v03", "h03v04", "h03v05", "h04v00", "h04v01", "h04v02", "h04v03", "h00v00", "h00v03", "h01v04", "h01v05", "h01v06", "h02v04", "h02v05")
 
 # vector of directories containing raw files of each tile of tile_vec, can set up more than one directory, this above is an example where each tile has its own folder inside "D:/Maiac_raw_data/"
 input_dir_vec = paste0("D:/Maiac_raw_data/", tile_vec, "/")
@@ -25,8 +25,19 @@ no_cores = 8
 # select one of the three pre-configured view geometries normalization, can be one of this: "nadir", "backscat", or "forwardscat"
 view_geometry = "nadir"
 
-# run specific composite/year/tile processing instead of normal "all time-series" processing
-# manual_run can be FALSE for normal procedure, or a vector/matrix with columns equal to c(composite day of year, year, tile directory, tile name), where each line corresponds to one composite, for running specific composite/year/tile processing
-# example of matrix:
+# MANUAL RUN - process specific composite/year/tile instead of normal "all time-series" processing for given tiles
+# manual_run can be set to FALSE for normal procedure, or a vector/matrix with columns equal to c(composite day of year, year, tile directory, tile name), where each line corresponds to one composite, for running specific composite/year/tile processing
+# -
+# example of matrix to run a few composites from 2013 and 2014:
 # manual_run = rbind(cbind(seq(240,352,16), 2013, "/mnt/dados_ricardo/Maiac_raw_data/h02v00/", "h02v00"), cbind(seq(16,128,16), 2014, "/mnt/dados_ricardo/Maiac_raw_data/h02v00/", "h02v00"))
+# -
+# example of matrix varying days, years and tiles:
+# manual_doy = seq(16,352,16)
+# manual_year = c(2008)
+# manual_tile = c("h00v01", "h00v02", "h01v00", "h01v01", "h01v02", "h01v03", "h02v00", "h02v01", "h02v02", "h02v03", "h03v00", "h03v01", "h03v02")
+# manual_tmp_grid = expand.grid(manual_doy, manual_tile, manual_year)
+# manual_dir_tiles = paste0("/mnt/dados_ricardo/Maiac_raw_data/", manual_tmp_grid$Var2,"/")
+# manual_run = cbind(manual_tmp_grid$Var1, manual_tmp_grid$Var3, manual_dir_tiles, as.character(manual_tmp_grid$Var2))
+# -
+# if not running specific tiles manually just set manual_run to FALSE
 manual_run = FALSE
