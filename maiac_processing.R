@@ -133,8 +133,8 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   # create nan rasters for tile in case it is needed
   CreateNanTiles(tile, nan_tiles_dir, latlon_tiles_dir)
   
-  # check if composite processed file already exist, otherwise just skip to next iteration
-  if (IsTileCompositeProcessed(composite_fname, tile, year, day, output_dir))
+  # check if composite processed file already exist, otherwise just skip to next iteration; manual_run overrides this and overwrite files
+  if (IsTileCompositeProcessed(composite_fname, tile, year, day, output_dir, manual_run))
     return(0)
   
   # if no brf or rtls is available for given day, year, tile, (1) try to download it (in case of rtls), or (2) return nan output, log the information and go to next iteration

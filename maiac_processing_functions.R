@@ -25,22 +25,26 @@ IsCompositeProcessed = function(composite_fname, year, day, output_dir) {
 }
 
 # function to check for a processed tile composite, if it does exist just go to the next iteration
-IsTileCompositeProcessed = function(composite_fname, tile, year, day, output_dir) {
+IsTileCompositeProcessed = function(composite_fname, tile, year, day, output_dir, manual_run) {
   # set escape variable default
   result = FALSE
   
   # name of the bands
   band_names = c("band1","band2","band3","band4","band5","band6","band7","band8","no_samples")
-  
-  # check if tile composite exists, check just band 1 because the rest is supposed to be there aswell
-  if (file.exists(paste0(output_dir,composite_fname,".",tile,".",year,day[length(day)],".",band_names[1],".tif"))) {
-  #if (file.exists(paste0(output_dir,composite_fname,".",tile,".",year,day[length(day)],".tif"))) {
-    # message
-    print(paste0(Sys.time(), ": Tile composite ",paste0(composite_fname,".",tile,".",year,day[length(day)])," is already processed, going to the next iteration."))
+
+  # if it is not a manual run, proceed to test if files exist, otherwise just skip testing and process
+  if (any(manual_run == FALSE)) {
     
-    # go to the next iteration
-    result = TRUE
+    # check if tile composite exists, check just band 1 because the rest is supposed to be there aswell
+    if (file.exists(paste0(output_dir,composite_fname,".",tile,".",year,day[length(day)],".",band_names[1],".tif"))) {
+      # message
+      print(paste0(Sys.time(), ": Tile composite ",paste0(composite_fname,".",tile,".",year,day[length(day)])," is already processed, going to the next iteration."))
+      
+      # go to the next iteration
+      result = TRUE
+    }
   }
+  
   return(result)
 }
 
