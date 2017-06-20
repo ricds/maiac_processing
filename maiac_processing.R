@@ -70,6 +70,9 @@ dir.create(file.path(process_dir), showWarnings = FALSE, recursive=T)
 # output directory, the one to export the processed composites
 output_dir = paste0(process_dir, "MAIAC_ProcessedTiles/")
 
+# directory to place downloads in case of corrupted or missing files
+downloaded_files_dir = paste0(process_dir, "MAIAC_DownloadedFiles/")
+
 # log file path, this file will contain the text output from each core running, useful for debugging
 log_fname = paste0(output_dir, "log.txt")
 
@@ -87,6 +90,9 @@ dir.create(file.path(nan_tiles_dir), showWarnings = FALSE, recursive=T)
 
 # create processed composites/tiles directory if it doesnt exist
 dir.create(file.path(output_dir), showWarnings = FALSE, recursive=T)
+
+# create downloaded files directory if it doesnt exist
+dir.create(file.path(downloaded_files_dir), showWarnings = FALSE, recursive=T)
 
 # product name MAIACTBRF, MAIACABRF, MAIACRTLS, don't change this
 product = c("MAIACTBRF","MAIACABRF")
@@ -138,7 +144,7 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
     return(0)
   
   # if no brf or rtls is available for given day, year, tile, (1) try to download it (in case of rtls), or (2) return nan output, log the information and go to next iteration
-  if (!IsDataAvailable(product, tile, year, day, nan_tiles_dir, output_dir, obs="brf", maiac_ftp_url, composite_fname) | !IsDataAvailable(parameters, tile, year, day, nan_tiles_dir, output_dir, obs="rtls", maiac_ftp_url, composite_fname))
+  if (!IsDataAvailable(product, tile, year, day, nan_tiles_dir, output_dir, obs="brf", maiac_ftp_url, composite_fname, downloaded_files_dir) | !IsDataAvailable(parameters, tile, year, day, nan_tiles_dir, output_dir, obs="rtls", maiac_ftp_url, composite_fname, downloaded_files_dir))
     return(0)
   
   # set temporary directory
@@ -148,11 +154,11 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   dir.create(file.path(output_dir, tmp_dir), showWarnings = FALSE)
   
   # 1) get filenames from the available products and parameters files for the iteration
-  product_fname = GetFilenameVec(product, input_dir, tile, year, day)
-  parameter_fname = GetFilenameVec(parameters, input_dir, tile, year, day)
+  product_fname = GetFilenameVec(product, input_dir, downloaded_files_dir, tile, year, day)
+  parameter_fname = GetFilenameVec(parameters, input_dir, downloaded_files_dir, tile, year, day)
 
   # 2) (parallel computing) convert files from hdf to geotif using gdal_translate
-  ConvertHDF2TIF(product_fname, parameter_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname, is_ea_filter, is_qa_filter)
+  ConvertHDF2TIF(product_fname, parameter_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname, is_ea_filter, is_qa_filter, downloaded_files_dir)
   
   # remove directory from filenames, return only the "filenames".hdf
   product_fname = basename(product_fname)

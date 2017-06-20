@@ -65,12 +65,12 @@ isTileProcessed = function(tile, input_dir, output_dir, tmp_dir) {
 }
 
 # function to check if RTLS tile is available, if it does return TRUE, if it doesn't exist, create a "processed tile" with nan values
-IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs, maiac_ftp_url, composite_fname) {
+IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs, maiac_ftp_url, composite_fname, downloaded_files_dir) {
   # set escape variable default
   result = TRUE
   
   # retrieve data available
-  fname = GetFilenameVec(type, input_dir, tile, year, day)
+  fname = basename(GetFilenameVec(type, input_dir, downloaded_files_dir, tile, year, day))
 
   # if its brf
   if (length(fname)==0 & obs == "brf") {
@@ -147,12 +147,16 @@ IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs
       # try to download the missing rtls
       if (length(rtls_to_download)>0) {
         for (i in 1:length(rtls_to_download)) {
-          DownloadMissingFile(rtls_to_download[i], paste0(input_dir,year,"/"), maiac_ftp_url, output_dir)
+          # download the missing file and place the file in the input directory
+          #DownloadMissingFile(rtls_to_download[i], paste0(input_dir,year,"/"), maiac_ftp_url, output_dir)
+          
+          # download the missing file and place the file in a download directory
+          DownloadMissingFile(rtls_to_download[i], downloaded_files_dir, maiac_ftp_url, output_dir)
         }
       }
       
       # retrieve fname again
-      fname = GetFilenameVec(type, input_dir, tile, year, day)
+      fname = basename(GetFilenameVec(type, input_dir, downloaded_files_dir, tile, year, day))
     }
     
     # if the variable is empty
@@ -213,15 +217,25 @@ CreateNanTiles = function(tile, nan_tiles_dir, latlon_tiles_dir) {
 }
 
 # function to get filenames of each 8-day product or parameters files from a product "x", from a input directory "input_dir", of a respective "tile", "year" and day vector "day"
-GetFilenameVec = function(product, input_dir, tile, year, day) {
+GetFilenameVec = function(product, input_dir, downloaded_files_dir, tile, year, day) {
   # create combinatios of product, tile, year and day
   combinations = expand.grid(product, paste0(".",tile,"."), year, sprintf("%03s",day))
   
   # merge the combinations
   combinations = paste0(combinations$Var1, combinations$Var2, combinations$Var3, combinations$Var4)
   
-  # prepare an outut
-  result = list.files(input_dir, pattern=paste(combinations,collapse="|"), recursive=T)
+  # get files from input_dir
+  result = list.files(input_dir, pattern=paste(combinations,collapse="|"), recursive = TRUE, full.names = TRUE)
+  
+  # get files from downloaded_files_dir
+  result2 = list.files(downloaded_files_dir, pattern=paste(combinations,collapse="|"), recursive = TRUE, full.names = TRUE)
+  
+  # merge both, downloaded first so it has priority when filtering for duplicates
+  result = c(result2, result)
+  
+  # find and remove duplicates
+  if (length(result2)>0)
+    result = result[-c(which(duplicated(basename(result))))]
   
   # return the output
   return(result)
@@ -317,7 +331,7 @@ RemoveDirectoryFromFilenameVec = function(product_string) {
 }
 
 # function to convert BRF and RTLS files from .HDF to .TIF from an input directory "input_dir" to a temporary output directory "output_dir"/tmp
-ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname, is_ea_filter, is_qa_filter) {
+ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname, is_ea_filter, is_qa_filter, downloaded_files_dir) {
   # message
   print(paste0(Sys.time(), ": Converting HDFs to TIF in parallel..."))
   
@@ -362,9 +376,9 @@ ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, n
       #sds_list = get_subdatasets(paste0(input_dir,x[i]))  # slooooow
       #sds_list = paste0(sds_preffix,paste0(input_dir,x[i]),sds_suffix)  # fast!
       if (sds_to_retrieve_mat[i,1] == "01") {
-        sds_list = paste0(sds_preffix,paste0(input_dir,x[i]),sds_suffix_brf)  # fast!
+        sds_list = paste0(sds_preffix,x[i],sds_suffix_brf)  # fast!
       } else
-        sds_list = paste0(sds_preffix,paste0(input_dir,x[i]),sds_suffix_rtls)  # fast!
+        sds_list = paste0(sds_preffix,x[i],sds_suffix_rtls)  # fast!
       
       # retrieve one sub-data set each time
       for (j in 1:length(sds_to_retrieve_mat[i,])) { #sprintf("%02d",sds_to_retrieve_mat[i,][j])
@@ -399,14 +413,23 @@ ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, n
         
         # after two tries converting again, the problem might be a corrupted HDF
         # option 2, corrupted HDF
-        # solution: download again, test download for 5 times
+        # solution: download again, test download for 5 times, NASA website sometimes doesn't respond
         try_count_download = 0
         while (any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif"))) & try_count_download < 5) {
           # message
           print(paste0(Sys.time(), ": Error while converting file ",i," from ",length(x)," -> ",x1))
           
-          # download the missing file
-          DownloadMissingFile(x1, paste0(input_dir, dirname(x[i]),"/"), maiac_ftp_url, output_dir)
+          # download the missing file and place the file in the input folder
+          #DownloadMissingFile(x1, paste0(input_dir, dirname(x[i]),"/"), maiac_ftp_url, output_dir)
+          
+          # download the missing file and place the file in a download directory
+          DownloadMissingFile(x1, downloaded_files_dir, maiac_ftp_url, output_dir)
+          
+          # change the sds list
+          if (sds_to_retrieve_mat[i,1] == "01") {
+            sds_list = paste0(sds_preffix,paste0(downloaded_files_dir,x1),sds_suffix_brf)  # fast!
+          } else
+            sds_list = paste0(sds_preffix,paste0(downloaded_files_dir,x1),sds_suffix_rtls)  # fast!
           
           # try to convert again
           for (j in 1:length(sds_to_retrieve_mat[i,])) { #sprintf("%02d",sds_to_retrieve_mat[i,][j])
