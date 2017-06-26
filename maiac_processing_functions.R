@@ -31,7 +31,7 @@ IsTileCompositeProcessed = function(composite_fname, tile, year, day, output_dir
   
   # name of the bands
   band_names = c("band1","band2","band3","band4","band5","band6","band7","band8","no_samples")
-
+  
   # if it is not a manual run, proceed to test if files exist, otherwise just skip testing and process
   if (any(manual_run == FALSE)) {
     
@@ -70,8 +70,12 @@ IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs
   result = TRUE
   
   # retrieve data available
-  fname = basename(GetFilenameVec(type, input_dir, downloaded_files_dir, tile, year, day))
-
+  if (obs=="rtls") {
+    fname = basename(GetFilenameVec(type, input_dir, downloaded_files_dir, tile, year, day, offset_days = 24))
+  } else {
+    fname = basename(GetFilenameVec(type, input_dir, downloaded_files_dir, tile, year, day, offset_days = 0))
+  }
+  
   # if its brf
   if (length(fname)==0 & obs == "brf") {
     
@@ -93,95 +97,27 @@ IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs
     result = FALSE
   }
   
-  # if its rtls
-  if (obs == "rtls") {
-    # get all possible rtls days
-    rtls_days = seq(8,360,8)
+  # if no rtls
+  if (length(fname)==0 & obs == "rtls") {
+    # there was a code here to try and download the missing files, but it was tricky
     
-    # find which rtls files should exist
-    day_match = match(as.numeric(day), rtls_days)
+    # log the bad file
+    line = paste(obs, year, day[length(day)], tile, sep=",")
+    write(line, file=paste0(output_dir,"missing_files.txt"), append=TRUE)
     
-    # get its index
-    day_idx = day_match[!is.na(day_match)]
     
-    # get its value
-    rtls_match = rtls_days[day_idx]
+    # load a brick of 9 nan bands (equivalent to band1-8 and number of pixels)
+    b = brick(lapply(c(1:9), FUN=function(x) raster(paste0(nan_tiles_dir,"nantile.",tile,".tif"))))
     
-    # transform it back to char with 3 digits
-    rtls_match = sprintf("%03d", rtls_match)
+    # save the nan tile as the processed tile
+    #writeRaster(b, filename=paste0(output_dir, composite_fname, ".", tile, ".", year, day[length(day)], ".tif"), format="GTiff", datatype='INT2S', overwrite=TRUE)
+    SaveProcessedTileComposite(b, output_dir, composite_fname, tile, year, day)
     
-    # get full rtls name
-    rtls_match = paste0(type,".",tile,".",year,rtls_match,".hdf")
+    # message
+    print(paste0(Sys.time(), ": Couldn't find ", obs ," tile ", tile, ", year ", year, ", and day ", day[length(day)],". Going to next iteration..."))
     
-    # if rtls found is less than the total rtls for the composite, try to download the missing rtls
-    if (length(fname) < length(rtls_match)) {
-      # delete the files that are already downloaded
-      rtls_to_download = rtls_match[-c(grep(pattern = paste(fname, collapse="|"), x = rtls_match))]
-      
-      # check if the script already tried to download the file in the past
-      if (file.exists(paste0(output_dir,"download_fail.txt")) & length(rtls_to_download)>0) {
-        # read txt file
-        txt = readLines(paste0(output_dir,"download_fail.txt"))
-        
-        # test if tile exists in txt
-        idx_vec = vector()
-        for (i in 1:length(rtls_to_download)) {
-          # match the txt with the current rtls
-          idx = match(rtls_to_download[i], txt)
-          
-          # if file exists in the txt remove it from the rlts match vector
-          if (!is.na(idx)) {
-            # add the idx to the vector
-            idx_vec = c(idx_vec, idx)
-            
-            # message
-            print(paste0(Sys.time(), ": Skipping download of ", obs ," tile ", tile, ", year ", year, ", and day ", rtls_to_download[i]," because the script already tried to download it in another run. Delete download_fail.txt if you want to try to download it again..."))
-          }
-        }
-        
-        # remove the idx found
-        if (length(idx_vec)>0)
-          rtls_to_download = rtls_to_download[-c(idx_vec)]
-      }
-      
-      # try to download the missing rtls
-      if (length(rtls_to_download)>0) {
-        for (i in 1:length(rtls_to_download)) {
-          # download the missing file and place the file in the input directory
-          #DownloadMissingFile(rtls_to_download[i], paste0(input_dir,year,"/"), maiac_ftp_url, output_dir)
-          
-          # download the missing file and place the file in a download directory
-          DownloadMissingFile(rtls_to_download[i], downloaded_files_dir, maiac_ftp_url, output_dir)
-        }
-      }
-      
-      # retrieve fname again
-      fname = basename(GetFilenameVec(type, input_dir, downloaded_files_dir, tile, year, day))
-    }
-    
-    # if the variable is empty
-    if (length(fname)==0) {
-      
-      # log the bad file
-      for (i in 1:length(rtls_match)) {
-        #line = paste(obs, year, day[length(day)], tile, sep=",")
-        line = paste(rtls_match[i], sep=",")
-        write(line, file=paste0(output_dir,"missing_files.txt"), append=TRUE)
-      }
-      
-      # load a brick of 9 nan bands (equivalent to band1-8 and number of pixels)
-      b = brick(lapply(c(1:9), FUN=function(x) raster(paste0(nan_tiles_dir,"nantile.",tile,".tif"))))
-      
-      # save the nan tile as the processed tile
-      #writeRaster(b, filename=paste0(output_dir, composite_fname, ".", tile, ".", year, day[length(day)], ".tif"), format="GTiff", datatype='INT2S', overwrite=TRUE)
-      SaveProcessedTileComposite(b, output_dir, composite_fname, tile, year, day)
-      
-      # message
-      print(paste0(Sys.time(), ": Couldn't find ", obs ," tile ", tile, ", year ", year, ", and day ", day[length(day)],". Going to next iteration..."))
-      
-      # go to the next iteration
-      result = FALSE
-    }
+    # go to the next iteration
+    result = FALSE
   }
   
   # return
@@ -217,25 +153,65 @@ CreateNanTiles = function(tile, nan_tiles_dir, latlon_tiles_dir) {
 }
 
 # function to get filenames of each 8-day product or parameters files from a product "x", from a input directory "input_dir", of a respective "tile", "year" and day vector "day"
-GetFilenameVec = function(product, input_dir, downloaded_files_dir, tile, year, day) {
-  # create combinatios of product, tile, year and day
-  combinations = expand.grid(product, paste0(".",tile,"."), year, sprintf("%03s",day))
+GetFilenameVec = function(type, input_dir, downloaded_files_dir, tile, year, day, offset_days) {
+  # initiate some things
+  result = c()
+  continue_processing=TRUE
+  offset_i = 0
+  day2 = day
   
-  # merge the combinations
-  combinations = paste0(combinations$Var1, combinations$Var2, combinations$Var3, combinations$Var4)
-  
-  # get files from input_dir
-  result = list.files(input_dir, pattern=paste(combinations,collapse="|"), recursive = TRUE, full.names = TRUE)
-  
-  # get files from downloaded_files_dir
-  result2 = list.files(downloaded_files_dir, pattern=paste(combinations,collapse="|"), recursive = TRUE, full.names = TRUE)
-  
-  # merge both, downloaded first so it has priority when filtering for duplicates
-  result = c(result2, result)
-  
-  # find and remove duplicates
-  if (length(result2)>0)
-    result = result[-c(which(duplicated(basename(result))))]
+  # loop to find rtls and increase offset on each iteration
+  while(length(result)==0 & continue_processing) {
+    # create combinatios of product, tile, year and day
+    combinations = expand.grid(type, paste0(".",tile,"."), year, sprintf("%03s",day2))
+    
+    # merge the combinations
+    combinations = paste0(combinations$Var1, combinations$Var2, combinations$Var3, combinations$Var4)
+    
+    # get files from input_dir
+    result = list.files(input_dir, pattern=paste(combinations,collapse="|"), recursive = TRUE, full.names = TRUE)
+    
+    # get files from downloaded_files_dir
+    result2 = list.files(downloaded_files_dir, pattern=paste(combinations,collapse="|"), recursive = TRUE, full.names = TRUE)
+    
+    # merge both, downloaded first so it has priority when filtering for duplicates
+    result = c(result2, result)
+    
+    # find and remove duplicates
+    if (length(result2)>0)
+      result = result[-c(which(duplicated(basename(result))))]
+    
+    # if there is results, just finish processing
+    if (length(result)>0) {
+      continue_processing=FALSE
+    } else {
+      # if no results and its rtls try to increase offset
+      if (type=="MAIACRTLS") {
+        # test if the composite rtls is available and remove the rest
+        if (offset_days>0 & any(offset_days == c(8,16,24))) {
+          # raise offset in 8
+          offset_i = offset_i + 8
+          
+          # get all possible rtls days
+          rtls_days = seq(8,360,8)
+          
+          # find which rtls files should exist
+          day_match = match(as.numeric(day), rtls_days)
+          
+          # get its index
+          day_idx = day_match[!is.na(day_match)]
+          
+          # get its value
+          rtls_match = rtls_days[day_idx]
+          
+          # list rtls files with -24 to +24 days around the composite date
+          day2 = sprintf("%03d", seq(min(rtls_match)-offset_i, max(rtls_match)+offset_i, 1))
+        }
+      } else { # if its brf just finish processing
+        continue_processing=FALSE
+      }
+    }
+  }
   
   # return the output
   return(result)
@@ -258,7 +234,7 @@ FilterProductTilesbyRTLSTiles = function(product_fname, parameter_fname, output_
     # message
     stop(paste0(Sys.time(), ": Problem in FilterProductTilesbyRTLSTiles function, can't find MAIAC in the fname."))
   } 
-
+  
   # check which tiles doesn't exist in RTLS but exist in product
   missing_tiles = unique(substr(product_fname[-grep(paste0(existing_tiles, collapse="|"), product_fname)],11,16))
   
@@ -351,7 +327,7 @@ ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, n
   sds_preffix = "HDF4_EOS:EOS_GRID:"
   sds_suffix_brf = c(":grid1km:sur_refl",":grid1km:Sigma_BRFn",":grid1km:Snow_Fraction",":grid1km:Snow_Grain_Diameter",":grid1km:Snow_Fit",":grid1km:Status_QA",":grid500m:sur_refl_500m",":grid5km:cosSZA",":grid5km:cosVZA",":grid5km:RelAZ",":grid5km:Scattering_Angle",":grid5km:Glint_Angle",":grid5km:SAZ",":grid5km:VAZ",":grid5km:Fv",":grid5km:Fg")
   sds_suffix_rtls = c(":grid1km:Kiso",":grid1km:Kvol",":grid1km:Kgeo",":grid1km:sur_albedo",":UpdateDay")
-
+  
   # merge x and y
   x = c(x,y)
   
@@ -359,19 +335,19 @@ ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, n
   cl = parallel::makeCluster(min(length(x), no_cores))
   registerDoParallel(cl)
   objects_to_export = c("x", "input_dir", "output_dir", "tmp_dir", "maiac_ftp_url", "DownloadMissingFile", "sds_to_retrieve_mat", "sds_preffix", "sds_suffix_brf","sds_suffix_rtls")
-
+  
   # loop through the files
   foreach(i = 1:length(x), .packages=c("raster","gdalUtils","rgdal","RCurl"), .export=objects_to_export, .errorhandling="remove") %dopar% {
     # adjust output filename in case the product name has folder in the beggining
     x1 = basename(x[i])
-
+    
     # check if x[i] converted tif file exists
     # if it does, just throw some message
     # if it doesnt, try to convert, if it works nice just go on, if it doesnt try to download the tile and process it again
     if (any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif")))) {
       # message
       print(paste0(Sys.time(), ": Converting HDF to TIF file ",i," from ",length(x)," -> ",x1))
-
+      
       # get the sds list
       #sds_list = get_subdatasets(paste0(input_dir,x[i]))  # slooooow
       #sds_list = paste0(sds_preffix,paste0(input_dir,x[i]),sds_suffix)  # fast!
@@ -387,7 +363,7 @@ ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, n
         } else
           gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]))
       }
-
+      
       # check if file exists after converting
       # if it doesn't, it can mean two things: (1) converting was somehow interrupted -> convert again, or (2) HDF is corrupted -> download again
       try_count = 0
@@ -454,7 +430,7 @@ ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, n
       print(paste0(Sys.time(), ": File ",i," from ",length(x)," is already converted to tif -> ",x1))
     }
   }
-
+  
   # finish cluster
   stopCluster(cl)
   
@@ -512,14 +488,14 @@ FilterValEqualToNA = function(x, equal) {
     }
   } else
     x = FilterEqual(x, equal)
-
+  
   # return value
   return(x)
 }
 
 # function to filter bad values of a "x" variable
 FilterValOutRangeToNA = function(x, minArg, maxArg) {
-
+  
   # filter function min/max
   FilterMinMax = function(x, minArg, maxArg) {
     x[x<minArg | x>maxArg]=NA
@@ -563,7 +539,7 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   for (i in 1:length(kL)) {
     rtls_day_vec[i] = as.numeric(substr(names(kL[[i]])[[1]],22,24))
   }
-
+  
   # function to normalize
   ff_nadir = function(BRFi, kLi, kVi, kGi, FVi, FGi) {
     #return(BRFi * (kLi - (0.04578*kVi) - (1.10003*kGi))/(kLi + (FVi*kVi) + (FGi*kGi)))
@@ -619,8 +595,8 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
     # identify which tile is the given i data and set the parameters to the tile
     img_day = as.numeric(substr(names(FVi),22,24))
     
-    # get rtls days that are lower than image day, and that are near the image day (12 days is an arbitrary number), get always the lowest rlts day (index 1)
-    idx = which(img_day <= rtls_day_vec & abs(rtls_day_vec - img_day) <= 12)[1]
+    # get rtls days that are lower than image day, and that are near the image day until 8 days (the aggreagated rtls), get always the lowest rlts day (index 1)
+    idx = which(img_day <= rtls_day_vec & abs(rtls_day_vec - img_day) <= 8)[1]
     
     # if there is no rtls available, get the closest one and log it
     if (is.na(idx)) {
@@ -628,7 +604,7 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
       line = paste0("Tile: ", tile,", Year: ", year,", Image day: ", img_day,", RTLS day: ", rtls_day_vec[idx])
       write(line,file=paste0(output_dir, "processed_closest_rtls.txt"), append=TRUE)
     }
-
+    
     # calculate brf nadir
     c(overlay(subset(BRF[[i]],1:8), kL[[idx]], kV[[idx]], kG[[idx]], FVi, FGi = disaggregate(FG[[i]], fact=c(5,5)), fun=ff))
   }
@@ -651,7 +627,7 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   }
   if (length(idx_vec)>0)
     BRFn = BRFn[-c(idx_vec)]
-
+  
   # measure time
   t2 = mytoc(t1)
   
@@ -671,13 +647,13 @@ ConvertBRFNadir = cmpfun(ConvertBRFNadir)
 ComputeQuality = function(x) {
   # interpreting all possible QA
   qa_dataframe <- data.frame(Integer_Value = x,
-                     surface = NA, #12-15
-                     reserved = NA, #10-11
-                     algoinit = NA, #9
-                     aotlevel = NA, #8
-                     adjacency = NA, #5-7
-                     landcover = NA, #3-4
-                     cloud = NA #0-2
+                             surface = NA, #12-15
+                             reserved = NA, #10-11
+                             algoinit = NA, #9
+                             aotlevel = NA, #8
+                             adjacency = NA, #5-7
+                             landcover = NA, #3-4
+                             cloud = NA #0-2
   )
   
   for(i in 1:length(x)){
@@ -843,7 +819,7 @@ FilterEA = function(raster_brick, product_fname, output_dir, tmp_dir) {
 # function to reorder the brick list per band instead of per date
 ReorderBrickPerBand = function(raster_brick) {
   #raster_brick = nadir_brf_reflectance
-
+  
   # new list
   y = list()
   
@@ -860,7 +836,7 @@ ReorderBrickPerBand = function(raster_brick) {
       y[[j]] = addLayer(y[[j]],raster_brick[[i]][[j]])
     }
   }
-
+  
   # return
   return(y)
 }
@@ -885,13 +861,13 @@ ReorderBrickPerBand = cmpfun(ReorderBrickPerBand)
 # function to merge the data from 8-day time span into one composite file using the median value
 CalcMedianBRF = function(raster_brick_per_band, no_cores, log_fname, output_dir, tmp_dir) {
   #raster_brick_per_band = nadir_brf_reflectance_per_band
-
+  
   # message
   print(paste0(Sys.time(), ": Calculating median..."))
   
   # measure time
   t1 = mytic()
-
+  
   # function to calculate median and number of pixels
   CalcMedianAndN = function(x) {
     value = x[!is.na(x)]
@@ -923,7 +899,7 @@ CalcMedianBRF = function(raster_brick_per_band, no_cores, log_fname, output_dir,
   foreach(i = myit, .packages=c("raster","median2rcpp"), .export=objects_to_export, .errorhandling="remove") %dopar% {
     # message
     #print(paste0(Sys.time(), ": Calculating median per band ",i," from ",length(raster_brick_per_band)))
-  
+    
     # calc median, if i == 1 save the number of pixels, otherwise just save the values
     if (names(i)[1]=="X1") {
       writeRaster(round(calc(i, fun=CalcMedianAndN)*10000,0), filename=paste0(output_dir, tmp_dir, "Band_",names(i)[1],".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
@@ -976,7 +952,7 @@ SaveProcessedTileComposite = function(medianBRF, output_dir, composite_fname, ti
   for (i in 1:9) {
     writeRaster(medianBRF[[i]], filename=paste0(output_dir,composite_fname,".",tile,".",year, day[length(day)],".",band_names[i],".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
   }
-    
+  
   # message
   print(paste0(Sys.time(), ": Tile composite was saved: ",composite_fname,".",tile,".",year, day[length(day)]))
 }
@@ -1036,7 +1012,7 @@ ReprojectComposite = function(x, output_dir, tmp_dir, year, day, output_raster) 
 CreateDayMatrix = function(composite_no = 8) {
   # create matrix of days on each composite
   day_mat = matrix(sprintf("%03d",1:(360 - 360%%composite_no)), ncol=composite_no, byrow=T)
-
+  
   # return
   return(day_mat)
 }

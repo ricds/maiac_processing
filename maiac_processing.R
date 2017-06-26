@@ -154,8 +154,8 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   dir.create(file.path(output_dir, tmp_dir), showWarnings = FALSE)
   
   # 1) get filenames from the available products and parameters files for the iteration
-  product_fname = GetFilenameVec(product, input_dir, downloaded_files_dir, tile, year, day)
-  parameter_fname = GetFilenameVec(parameters, input_dir, downloaded_files_dir, tile, year, day)
+  product_fname = GetFilenameVec(product, input_dir, downloaded_files_dir, tile, year, day, offset_days=0)
+  parameter_fname = GetFilenameVec(parameters, input_dir, downloaded_files_dir, tile, year, day, offset_days=24)
 
   # 2) (parallel computing) convert files from hdf to geotif using gdal_translate
   ConvertHDF2TIF(product_fname, parameter_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname, is_ea_filter, is_qa_filter, downloaded_files_dir)
