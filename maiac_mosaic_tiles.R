@@ -117,3 +117,6 @@ stopCluster(cl)
 
 # message
 print("Processing finished.")
+
+# check file size
+sum(file.info(list.files(mosaic_input_dir, pattern="crop", full.names = TRUE))$size)/(1024*1024*1024)  # 37.29926
