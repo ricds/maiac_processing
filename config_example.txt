@@ -41,3 +41,30 @@ view_geometry = "nadir"
 # -
 # if not running specific tiles manually just set manual_run to FALSE
 manual_run = FALSE
+
+
+
+# MOSAIC CONFIG ------------------------------------------------------------------
+
+# maiac input folder
+mosaic_input_dir = "/mnt/DATADRIVE2/ricardo_data/_MAIAC/MAIAC_ProcessedTiles/"
+
+# folder to put the processed files
+mosaic_output_dir = "/mnt/DATADRIVE2/ricardo_data/MAIAC_AMZ/"
+
+# base filename of the processed file, e.g. if set mosaic_base_filename = "maiac_ricardo", the processed files will be something like "maiac_ricardo_2000064_band1_latlon_crop.tif"
+mosaic_base_filename = "maiac_amz_nadir"
+
+# tiles to mosaic
+# South America, tiles_to_mosaic = c("h00v01", "h00v02", "h01v00", "h01v01", "h01v02", "h01v03", "h02v00", "h02v01", "h02v02", "h02v03", "h03v00", "h03v01", "h03v02", "h03v03", "h03v04", "h04v01", "h04v02", "h04v03", "h00v00", "h01v04", "h01v05", "h01v06", "h02v04", "h02v05")
+# Amazonia, tiles_to_mosaic = c("h00v01", "h00v02", "h01v00", "h01v01", "h01v02", "h01v03", "h02v00", "h02v01", "h02v02", "h02v03", "h03v00", "h03v01", "h03v02")
+tiles_to_mosaic = c("h00v01", "h00v02", "h01v00", "h01v01", "h01v02", "h01v03", "h02v00", "h02v01", "h02v02", "h02v03", "h03v00", "h03v01", "h03v02")
+
+# crop extent information in lat/lon coordinates (min_lon, max_lon, min_lat, max_lat), if is_crop_enable is set to TRUE the script will crop the file to crop_ext extent
+is_crop_enable = TRUE  # set to TRUE or FALSE
+# Amazonia Eva Huber, crop_ext = extent(-80, -45, -21, 9), real extent is -79.62473, -44.35324, -20.47028, 8.63236  (xmin, xmax, ymin, ymax)
+# Bamboo southwest amazon, crop_ext =  extent(-75, -66, -13, -6)
+crop_ext = NA
+# polygon to crop, set to NA if using extent
+crop_polygon = "/mnt/DATADRIVE2/ricardo_data/maiac_processing/AmazoniaLimits.shp"
+crop_raster = "/mnt/DATADRIVE2/ricardo_data/maiac_processing/amazonia_raster.tif"
