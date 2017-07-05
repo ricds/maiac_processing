@@ -33,6 +33,9 @@ source(paste0(functions_dir, "config.txt"))
 # read composite vector from the functions folder
 composite_vec = read.csv(paste0(functions_dir,"composite_vec_16.csv"), header=F)
 
+# create output folder in case it does not exist
+dir.create(file.path(mosaic_output_dir), showWarnings = FALSE, recursive=T)
+
 # band names
 band_names = c("band1","band2","band3","band4","band5","band6","band7","band8","no_samples")
 
