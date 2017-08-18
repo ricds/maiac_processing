@@ -98,14 +98,19 @@ f=foreach(i = 1:364, .packages=c("raster","gdalUtils","rgdal"), .errorhandling="
              y = CROP_POLYGON,
              filename = paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon_crop.tif"),
              overwrite = TRUE,
-             options = c("COMPRESS=DEFLATE","PREDICTOR=2","ZLEVEL=3"))
+             format="GTiff",
+             datatype = "INT2S",
+             options = c("COMPRESS=LZW","PREDICTOR=2")
+             )
       } else {
         # crop the file by extent
         crop(x = raster(paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon.tif")),
              y = crop_ext,
              filename = paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon_crop.tif"),
              overwrite = TRUE,
-             options = c("COMPRESS=DEFLATE","PREDICTOR=2","ZLEVEL=3"))
+             format="GTiff",
+             datatype = "INT2S",
+             options = c("COMPRESS=LZW","PREDICTOR=2"))
       }
       
       # delete pre-crop file
