@@ -42,7 +42,6 @@ band_names = c("band1","band2","band3","band4","band5","band6","band7","band8","
 # read crop polygon/raster
 if (!is.na(crop_polygon)) {
   CROP_RASTER = raster(crop_raster)
-  CROP_RASTER[CROP_RASTER!=0]=1
   CROP_POLYGON = readOGR(crop_polygon)
 }
 
@@ -68,7 +67,7 @@ f=foreach(i = 1:364, .packages=c("raster","gdalUtils","rgdal"), .errorhandling="
                      overwrite=TRUE,
                      output_Raster = FALSE,
                      ot="Int16",
-                     co = c("COMPRESS=DEFLATE","PREDICTOR=2","ZLEVEL=3"))
+                     co = c("COMPRESS=LZW","PREDICTOR=2"))
     }
     
     # proceed only if latlon and crop file doesn't exist
@@ -82,7 +81,7 @@ f=foreach(i = 1:364, .packages=c("raster","gdalUtils","rgdal"), .errorhandling="
                ot="Int16",
                tr=c(0.009107388, 0.009107388), # 0.009107388 is the resolution from the old series
                wo = "INIT_DEST = NO_DATA",
-               co = c("COMPRESS=DEFLATE","PREDICTOR=2","ZLEVEL=3"),
+               co = c("COMPRESS=LZW","PREDICTOR=2"),
                r = "near")
       
       # delete pre-warp file
