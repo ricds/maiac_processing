@@ -64,6 +64,13 @@ source(paste0(functions_dir, "config.txt"))
 # load functions
 source(paste0(functions_dir, "maiac_processing_functions.R"))
 
+# test if input_dir_vec is empty
+if (length(list.files(input_dir_vec[1]))==0) {
+  # message
+  print(paste0(Sys.time(), ": ERROR Input directory is Empty."))
+  stop(paste0(Sys.time(), ": ERROR Input directory is Empty."))
+}
+1+1
 # create process directory if it doesnt exist
 dir.create(file.path(process_dir), showWarnings = FALSE, recursive=T)
 
