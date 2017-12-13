@@ -140,8 +140,13 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   # get year from loop_mat
   year = as.numeric(loop_mat[j,2])
   
-  # get the day vector from loop_mat
-  day = day_mat[as.numeric(loop_mat[j,1]),]
+  # get the day vector from loop_mat, if its monthly get the dates according to the year, otherwise just get the values from day_mat
+  if (composite_no == "month") {
+    days_of_months = matrix(diff(seq(as.Date("2000-01-01"), as.Date("2021-01-01"), by = "month")), ncol = 12, byrow = T)
+    day = format(seq(from = as.Date(paste0(year,"-", as.numeric(loop_mat[j,1]), "-01")), to = as.Date(paste0(year,"-", as.numeric(loop_mat[j,1]), "-", days_of_months[which(2000:2020==year),as.numeric(loop_mat[j,1])])), by = 1), "%j")
+  } else {
+    day = day_mat[as.numeric(loop_mat[j,1]),]
+  }
   
   # create nan rasters for tile in case it is needed
   nan_tile = CreateNanTiles(tile, nan_tiles_dir, latlon_tiles_dir)
@@ -151,7 +156,7 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
     return(0)
   
   # if no brf or rtls is available for given day, year, tile, (1) try to download it (in case of rtls), or (2) return nan output, log the information and go to next iteration
-  if (!IsDataAvailable(product, tile, year, day, nan_tiles_dir, output_dir, obs="brf", maiac_ftp_url, composite_fname, downloaded_files_dir) | !IsDataAvailable(parameters, tile, year, day, nan_tiles_dir, output_dir, obs="rtls", maiac_ftp_url, composite_fname, downloaded_files_dir))
+  if (!IsDataAvailable(product, tile, year, day, nan_tiles_dir, output_dir, obs="brf", maiac_ftp_url, composite_fname, downloaded_files_dir, composite_no) | !IsDataAvailable(parameters, tile, year, day, nan_tiles_dir, output_dir, obs="rtls", maiac_ftp_url, composite_fname, downloaded_files_dir, composite_no))
     return(0)
   
   # set temporary directory
@@ -185,7 +190,7 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   
   # test if nadir_brf_reflectance is empty, and return nan tile if it is true
   if (length(nadir_brf_reflectance) == 0) {
-    SaveProcessedTileComposite(nan_tile, output_dir, composite_fname, tile, year, day)
+    SaveProcessedTileComposite(nan_tile, output_dir, composite_fname, tile, year, day, composite_no)
     return(0)
   }
   
@@ -212,13 +217,19 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   rm(list = c("nadir_brf_reflectance_per_band"))
   
   # 8) plot a preview image of the composite and save it on the disk
-  png(filename=paste0(tile_preview_dir,"fig_",composite_fname,"_",tile,"_",year,day[length(day)],".png"), type="cairo", units="cm", width=15, height=15, pointsize=10, res=300)
+  # define the composite number or name
+  if (composite_no == "month") {
+    composite_num = paste0("_",format(as.Date(paste0(day[length(day)],"-", year), "%j-%Y"), "%m"))
+  } else {
+    composite_num = day[length(day)]
+  }
+  png(filename=paste0(tile_preview_dir,"fig_",composite_fname,"_",tile,"_",year,composite_num,".png"), type="cairo", units="cm", width=15, height=15, pointsize=10, res=300)
   par(oma=c(4,4,4,4))
   plot(median_brf_reflectance/10000)
   dev.off()
   
   # 9) save the processed composite
-  SaveProcessedTileComposite(median_brf_reflectance, output_dir, composite_fname, tile, year, day)
+  SaveProcessedTileComposite(median_brf_reflectance, output_dir, composite_fname, tile, year, day, composite_no)
   rm(list = c("median_brf_reflectance"))
   
   # delete temporary directory

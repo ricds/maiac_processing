@@ -16,7 +16,7 @@ is_qa_filter = FALSE
 # enables filtering by Extreme Angles > 80, may reduce number of available pixels
 is_ea_filter = FALSE
 
-# number of days on each composite, should be 8, 16 or 32
+# number of days on each composite, should be 8, 16 or 32, or "month" for monthly composites
 composite_no = 16
 
 # number of cores to use while processing, it's sometimes recommended to use total number of cores minus one to try to prevent the computer from freezing
@@ -39,10 +39,17 @@ view_geometry = "nadir"
 # manual_dir_tiles = paste0("/mnt/dados_ricardo/Maiac_raw_data/", manual_tmp_grid$Var2,"/")
 # manual_run = cbind(manual_tmp_grid$Var1, manual_tmp_grid$Var3, manual_dir_tiles, as.character(manual_tmp_grid$Var2))
 # -
+# example when using a monthly composite, manual_doy correspond to the months from 1 (january) to 12 (december)
+# composite_no = "month"
+# manual_doy = 3:12 # months from march to december
+# manual_year = c(2000)
+# manual_tile = c("h01v02")
+# manual_tmp_grid = expand.grid(manual_doy, manual_tile, manual_year)
+# manual_dir_tiles = "F:/Maiac_test/MAIAC_test_raw_data_h01v02_2000/"
+# manual_run = cbind(manual_tmp_grid$Var1, manual_tmp_grid$Var3, manual_dir_tiles, as.character(manual_tmp_grid$Var2))
+# -
 # if not running specific tiles manually just set manual_run to FALSE
 manual_run = FALSE
-
-
 
 # MOSAIC CONFIG ------------------------------------------------------------------
 

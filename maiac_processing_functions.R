@@ -65,7 +65,7 @@ isTileProcessed = function(tile, input_dir, output_dir, tmp_dir) {
 }
 
 # function to check if RTLS tile is available, if it does return TRUE, if it doesn't exist, create a "processed tile" with nan values
-IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs, maiac_ftp_url, composite_fname, downloaded_files_dir) {
+IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs, maiac_ftp_url, composite_fname, downloaded_files_dir, composite_no) {
   # set escape variable default
   result = TRUE
   
@@ -88,7 +88,7 @@ IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs
     
     # save the nan tile as the processed tile
     #writeRaster(b, filename=paste0(output_dir, composite_fname, ".", tile, ".", year, day[length(day)], ".tif"), format="GTiff", datatype='INT2S', overwrite=TRUE)
-    SaveProcessedTileComposite(b, output_dir, composite_fname, tile, year, day)
+    SaveProcessedTileComposite(b, output_dir, composite_fname, tile, year, day, composite_no)
     
     # message
     print(paste0(Sys.time(), ": Couldn't find ", obs ," tile ", tile, ", year ", year, ", and day ", day[length(day)],". Going to next iteration..."))
@@ -111,7 +111,7 @@ IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs
     
     # save the nan tile as the processed tile
     #writeRaster(b, filename=paste0(output_dir, composite_fname, ".", tile, ".", year, day[length(day)], ".tif"), format="GTiff", datatype='INT2S', overwrite=TRUE)
-    SaveProcessedTileComposite(b, output_dir, composite_fname, tile, year, day)
+    SaveProcessedTileComposite(b, output_dir, composite_fname, tile, year, day, composite_no)
     
     # message
     print(paste0(Sys.time(), ": Couldn't find ", obs ," tile ", tile, ", year ", year, ", and day ", day[length(day)],". Going to next iteration..."))
@@ -933,7 +933,7 @@ CalcMedianBRF = function(raster_brick_per_band, no_cores, log_fname, output_dir,
 CalcMedianBRF = cmpfun(CalcMedianBRF)
 
 # function to write the processed file to disk, don't need to apply factors anymore, because we're already applying it on median
-SaveProcessedTileComposite = function(medianBRF, output_dir, composite_fname, tile, year, day) {
+SaveProcessedTileComposite = function(medianBRF, output_dir, composite_fname, tile, year, day, composite_no) {
   # factors for each band
   #factors = c(10000,10000,10000,10000,10000,10000,10000,10000,10000)
   
@@ -948,13 +948,20 @@ SaveProcessedTileComposite = function(medianBRF, output_dir, composite_fname, ti
   # name of the bands
   band_names = c("band1","band2","band3","band4","band5","band6","band7","band8","no_samples")
   
+  # define the composite number or name
+  if (composite_no == "month") {
+    composite_num = paste0("_",format(as.Date(paste0(day[length(day)],"-", year), "%j-%Y"), "%m"))
+  } else {
+    composite_num = day[length(day)]
+  }
+  
   # write to file
   for (i in 1:9) {
-    writeRaster(medianBRF[[i]], filename=paste0(output_dir,composite_fname,".",tile,".",year, day[length(day)],".",band_names[i],".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
+    writeRaster(medianBRF[[i]], filename=paste0(output_dir,composite_fname,".",tile,".",year, composite_num,".",band_names[i],".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
   }
   
   # message
-  print(paste0(Sys.time(), ": Tile composite was saved: ",composite_fname,".",tile,".",year, day[length(day)]))
+  print(paste0(Sys.time(), ": Tile composite was saved: ",composite_fname,".",tile,".",year, composite_num))
 }
 
 # function to write the processed file to disk while applying a factor of 10000 to bands 1-8 to reduce disk space usage
@@ -1010,8 +1017,12 @@ ReprojectComposite = function(x, output_dir, tmp_dir, year, day, output_raster) 
 
 # function to create the day matrix
 CreateDayMatrix = function(composite_no = 8) {
-  # create matrix of days on each composite
-  day_mat = matrix(sprintf("%03d",1:(360 - 360%%composite_no)), ncol=composite_no, byrow=T)
+  if (is.numeric(composite_no)) {
+    # create matrix of days on each composite
+    day_mat = matrix(sprintf("%03d",1:(360 - 360%%composite_no)), ncol=composite_no, byrow=T)
+  } else {
+    day_mat=NA
+  }
   
   # return
   return(day_mat)
@@ -1028,7 +1039,11 @@ CreateCompositeName = function(composite_no, product, is_qa_filter, is_ea_filter
     view_geometry_str = "Forwardscat"
   
   # base name
-  composite_fname = paste0("SR_",view_geometry_str,"_", composite_no ,"day")
+  if (composite_no == "month") {
+    composite_fname = paste0("SR_",view_geometry_str,"_", composite_no)
+  } else {
+    composite_fname = paste0("SR_",view_geometry_str,"_", composite_no ,"day")
+  }
   
   # which product
   if (length(product)==1) {
@@ -1056,34 +1071,43 @@ CreateCompositeName = function(composite_no, product, is_qa_filter, is_ea_filter
 
 # function to create loop mat, filtering the start and end dates from loop_mat, depending on composite_no
 CreateLoopMat = function(day_mat, composite_no, input_dir_vec, tile_vec, manual_run) {
-  
+
   # check if this is a manual run and create the loop_mat with the specific configuration
   if (any(manual_run != FALSE)) {
-    for (i in 1:dim(manual_run)[1])
-      manual_run[i,1] = which(sprintf("%03d", as.numeric(manual_run[i,1])) == day_mat, arr.ind = TRUE)[1]
+    # if its not a monthly composite, adjust values, for monthly its already ok
+    if (composite_no != "month") {
+      for (i in 1:dim(manual_run)[1])
+        manual_run[i,1] = which(sprintf("%03d", as.numeric(manual_run[i,1])) == day_mat, arr.ind = TRUE)[1]
+    }
+    
     loop_mat = manual_run
+    
   } else { # or create a loop matrix containing all time series
-    # find the lines in day_mat of first and last composite
-    # 64 2000 and 240 2016
-    idx_2000 = which(sprintf("%03d", 64) == day_mat, arr.ind = TRUE)[1]
-    idx_2016 = which(sprintf("%03d", 240) == day_mat, arr.ind = TRUE)[1]
-    
-    # old method
-    # loop_mat = expand.grid(c(1:dim(day_mat)[1]), c(2000:2016))
-    # loop_mat = cbind(loop_mat$Var1, loop_mat$Var2)
-    
-    # create the loop mat excluding the start and end index
-    mat1 = expand.grid(c(idx_2000:dim(day_mat)[1]), 2000)
-    mat2 = expand.grid(c(1:dim(day_mat)[1]), c(2001:2015))
-    mat3 = expand.grid(c(1:idx_2016), 2016)
+    # check if its a month composite
+    if (composite_no == "month") {
+      # create the loop mat excluding the start and end index
+      mat1 = expand.grid(c(3:12), 2000)
+      mat2 = expand.grid(c(1:12), c(2001:2016))
+    } else { # if its a fixed number of days composite
+      # find the lines in day_mat of first and last composite
+      # begin of time series = 64 2000
+      # end of time series = 352 2016
+      idx_begin = which(sprintf("%03d", 64) == day_mat, arr.ind = TRUE)[1]
+      #idx_end = which(sprintf("%03d", 352) == day_mat, arr.ind = TRUE)[1]
+      
+      # create the loop mat excluding the start and end index
+      mat1 = expand.grid(c(idx_begin:dim(day_mat)[1]), 2000)
+      mat2 = expand.grid(c(1:dim(day_mat)[1]), c(2001:2016))
+      #mat3 = expand.grid(c(1:idx_end), 2016)
+    }
     
     # merge mat columns
     mat1 = cbind(mat1$Var1, mat1$Var2)
     mat2 = cbind(mat2$Var1, mat2$Var2)
-    mat3 = cbind(mat3$Var1, mat3$Var2)
+    #mat3 = cbind(mat3$Var1, mat3$Var2)
     
     # merge mats
-    day_year = rbind(mat1, mat2, mat3)
+    day_year = rbind(mat1, mat2)#, mat3)
     
     # initiate the variable that will contain both day, year and dir, tile
     loop_mat = c()
