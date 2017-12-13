@@ -70,7 +70,7 @@ if (length(list.files(input_dir_vec[1]))==0) {
   print(paste0(Sys.time(), ": ERROR Input directory is Empty."))
   stop(paste0(Sys.time(), ": ERROR Input directory is Empty."))
 }
-1+1
+
 # create process directory if it doesnt exist
 dir.create(file.path(process_dir), showWarnings = FALSE, recursive=T)
 
