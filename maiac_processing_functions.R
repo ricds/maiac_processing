@@ -1018,7 +1018,7 @@ CreateDayMatrix = function(composite_no = 8) {
 }
 
 # function to create composite name given parameters
-CreateCompositeName = function(composite_no, product, is_qa_filter, is_ea_filter, view_geometry) {
+CreateCompositeName = function(composite_no, product, is_qa_filter, is_ea_filter, view_geometry = "nadir") {
   # choose function
   if (view_geometry == "nadir")
     view_geometry_str = "Nadir"
