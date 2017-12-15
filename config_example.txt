@@ -10,6 +10,9 @@ tile_vec = c("h00v01", "h00v02", "h01v00", "h01v01", "h01v02", "h01v03", "h02v00
 # vector of directories containing raw files of each tile of tile_vec, can set up more than one directory, this above is an example where each tile has its own folder inside "D:/Maiac_raw_data/"
 input_dir_vec = paste0("D:/Maiac_raw_data/", tile_vec, "/")
 
+# overwrite outputs when running or skip the already processed files, set TRUE to overwrite, or FALSE to skip processed files
+overwrite_files = FALSE
+
 # enables filtering by Quality Assessment bits (adjacent clouds and stuff), may reduce number of available pixels
 is_qa_filter = FALSE
 

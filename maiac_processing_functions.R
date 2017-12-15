@@ -25,7 +25,7 @@ IsCompositeProcessed = function(composite_fname, year, day, output_dir) {
 }
 
 # function to check for a processed tile composite, if it does exist just go to the next iteration
-IsTileCompositeProcessed = function(composite_fname, tile, year, day, output_dir, manual_run) {
+IsTileCompositeProcessed = function(composite_fname, tile, year, day, output_dir, overwrite_files) {
   # set escape variable default
   result = FALSE
   
@@ -33,12 +33,19 @@ IsTileCompositeProcessed = function(composite_fname, tile, year, day, output_dir
   band_names = c("band1","band2","band3","band4","band5","band6","band7","band8","no_samples")
   
   # if it is not a manual run, proceed to test if files exist, otherwise just skip testing and process
-  if (any(manual_run == FALSE)) {
+  if (!overwrite_files) {
+    
+    # define the composite number or name
+    if (composite_no == "month") {
+      composite_num = paste0("_",format(as.Date(paste0(day[length(day)],"-", year), "%j-%Y"), "%m"))
+    } else {
+      composite_num = day[length(day)]
+    }
     
     # check if tile composite exists, check just band 1 because the rest is supposed to be there aswell
-    if (file.exists(paste0(output_dir,composite_fname,".",tile,".",year,day[length(day)],".",band_names[1],".tif"))) {
+    if (file.exists(paste0(output_dir,composite_fname,".",tile,".",year, composite_num,".",band_names[1],".tif"))) {
       # message
-      print(paste0(Sys.time(), ": Tile composite ",paste0(composite_fname,".",tile,".",year,day[length(day)])," is already processed, going to the next iteration."))
+      print(paste0(Sys.time(), ": Tile composite ",paste0(composite_fname,".",tile,".",year,composite_num)," is already processed, going to the next iteration."))
       
       # go to the next iteration
       result = TRUE
