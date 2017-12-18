@@ -314,7 +314,7 @@ RemoveDirectoryFromFilenameVec = function(product_string) {
 }
 
 # function to convert BRF and RTLS files from .HDF to .TIF from an input directory "input_dir" to a temporary output directory "output_dir"/tmp
-ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname, is_ea_filter, is_qa_filter, downloaded_files_dir) {
+ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname, is_ea_filter, is_qa_filter, downloaded_files_dir, download_enabled, process_dir) {
   # message
   print(paste0(Sys.time(), ": Converting HDFs to TIF in parallel..."))
   
@@ -398,7 +398,7 @@ ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, n
         # option 2, corrupted HDF
         # solution: download again, test download for 5 times, NASA website sometimes doesn't respond
         try_count_download = 0
-        while (any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif"))) & try_count_download < 5) {
+        while (any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif"))) & try_count_download < 5 & download_enabled) {
           # message
           print(paste0(Sys.time(), ": Error while converting file ",i," from ",length(x)," -> ",x1))
           
@@ -436,6 +436,13 @@ ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, n
     } else {
       print(paste0(Sys.time(), ": File ",i," from ",length(x)," is already converted to tif -> ",x1))
     }
+    
+    # file does not exist... report in a .txt
+    if (any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif")))) {
+      print(paste0(Sys.time(), ": ERROR on file ",i," from ",length(x),", could not convert hdf2tif -> ",x1))
+      write(x1, file=paste0(process_dir,"hdf2tif_convert_fail.txt"), append=TRUE)
+    }
+    
   }
   
   # finish cluster

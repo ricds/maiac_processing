@@ -28,6 +28,9 @@ no_cores = 8
 # select one of the three pre-configured view geometries normalization, can be one of this: "nadir", "backscat", or "forwardscat"
 view_geometry = "nadir"
 
+# enable or disable download, boolen: TRUE or FALSE
+download_enabled = FALSE
+
 # MANUAL RUN - process specific composite/year/tile instead of normal "all time-series" processing for given tiles
 # manual_run can be set to FALSE for normal procedure, or a vector/matrix with columns equal to c(composite day of year, year, tile directory, tile name), where each line corresponds to one composite, for running specific composite/year/tile processing
 # -
