@@ -26,12 +26,6 @@ source(paste0(functions_dir, "config.txt"))
 # read composite vector from the functions folder
 composite_vec = read.csv(paste0(functions_dir,"composite_vec_",composite_no,".csv"), header=F)
 
-# list files
-list_crop = list.files(mosaic_output_dir, pattern="crop", full.names = TRUE)
-list_crop_band1 = grep(list_crop, pattern="band1", value = TRUE)
-list_crop_band2 = grep(list_crop, pattern="band2", value = TRUE)
-list_crop_band3 = grep(list_crop, pattern="band3", value = TRUE)
-
 # function to calc evi
 f_evi = function(NIR, RED, BLUE) {
   C1 = 6
@@ -54,8 +48,9 @@ ff_ndvi = cmpfun(f_ndvi)
 cl = parallel::makeCluster(no_cores)
 registerDoParallel(cl)
 
-# process in parallel
-f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster"), .errorhandling="remove") %dopar% {
+# process (can use parallel if the mosaic is not huge like the whole south america)
+for (i in 1:dim(composite_vec)[1]) {
+#f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster"), .errorhandling="remove") %dopar% {
   # check if files exist for given composite
   file_list = list.files(mosaic_output_dir, pattern=as.character(composite_vec[i,]), full.names=TRUE)
   
@@ -63,24 +58,24 @@ f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster"), .errorhandling="re
   if (length(file_list)!=0) {
     
     # get data
-    if (!file.exists(paste0(dirname(list_crop_band1[i]), "/", mosaic_base_filename, "_ndvi_", composite_vec[i,], ".tif")) || !file.exists(paste0(dirname(list_crop_band1[i]), "/", mosaic_base_filename, "_evi_", composite_vec[i,], ".tif"))) {
-      maiac_band1 = raster(list_crop_band1[i])/10000
-      maiac_band2 = raster(list_crop_band2[i])/10000
-      maiac_band3 = raster(list_crop_band3[i])/10000
+    if(length(grep(file_list, pattern="ndvi", value = T))==0 || length(grep(file_list, pattern="evi", value = T))==0) {
+      maiac_band1 = raster(grep(file_list, pattern="band1", value=T))/10000
+      maiac_band2 = raster(grep(file_list, pattern="band2", value=T))/10000
+      maiac_band3 = raster(grep(file_list, pattern="band3", value=T))/10000
     }
     
     # apply function
-    if (!file.exists(paste0(dirname(list_crop_band1[i]), "/", mosaic_base_filename, "_ndvi_", composite_vec[i,], ".tif"))) {
+    if (length(grep(file_list, pattern="ndvi", value = T))==0) {
       writeRaster(x=overlay(maiac_band2, maiac_band1, fun=ff_ndvi),
-                  filename = paste0(dirname(list_crop_band1[i]), "/", mosaic_base_filename, "_ndvi_", composite_vec[i,], ".tif"),
+                  filename = paste0(dirname(grep(file_list, pattern="band1", value=T)), "/", mosaic_base_filename, "_ndvi_", composite_vec[i,], ".tif"),
                   overwrite = TRUE, format = "GTiff",
                   datatype = "INT2S",
                   options = c("COMPRESS=LZW","PREDICTOR=2"))
     }
     
-    if (!file.exists(paste0(dirname(list_crop_band1[i]), "/", mosaic_base_filename, "_evi_", composite_vec[i,], ".tif"))) {
+    if (length(grep(file_list, pattern="evi", value = T))==0) {
       writeRaster(x=overlay(maiac_band2, maiac_band1, maiac_band3, fun=ff_evi),
-                  filename = paste0(dirname(list_crop_band1[i]), "/", mosaic_base_filename, "_evi_", composite_vec[i,], ".tif"),
+                  filename = paste0(dirname(grep(file_list, pattern="band1", value=T)), "/", mosaic_base_filename, "_evi_", composite_vec[i,], ".tif"),
                   overwrite = TRUE, format = "GTiff",
                   datatype = "INT2S",
                   options = c("COMPRESS=LZW","PREDICTOR=2"))
