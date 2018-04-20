@@ -39,17 +39,28 @@ dir.create(file.path(mosaic_output_dir), showWarnings = FALSE, recursive=T)
 # band names
 band_names = c("band1","band2","band3","band4","band5","band6","band7","band8","no_samples")
 
-# read crop polygon/raster
+# define the extent for cropping - if enabled
 if (!is.na(crop_polygon)) {
-  CROP_RASTER = raster(crop_raster)
   CROP_POLYGON = readOGR(crop_polygon)
+  crop_ext = extent(CROP_POLYGON)
 }
+if (!is.na(crop_raster)) {
+  CROP_RASTER = raster(crop_raster)
+  crop_ext = extent(CROP_RASTER)
+}
+
+# define mask
+if (!is.na(mask_polygon)) {
+  MASK_POLYGON = readOGR(mask_polygon)
+}
+
 
 # Initiate cluster
 cl = parallel::makeCluster(no_cores)
 registerDoParallel(cl)
 
 # process in parallel
+i=1
 f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster","gdalUtils","rgdal"), .errorhandling="remove") %dopar% {
   # list files and filter for composite_vec i
   file_list = list.files(mosaic_input_dir, pattern=as.character(composite_vec[i,]), full.names=TRUE)
@@ -74,49 +85,78 @@ f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster","gdalUtils","rgdal")
       }
       
       # proceed only if latlon and crop file doesn't exist
-      if (all(!file.exists(c(paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon.tif"),paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon_crop.tif"))))) {
-        # reproject from sinusoidal to latlon
-        gdalwarp(srcfile = paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],".tif"),
-                 dstfile = paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon.tif"),
-                 overwrite = TRUE,
-                 t_srs = "+init=epsg:4326 +proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0",
-                 s_srs = "+proj=sinu +lon_0=-58 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs",
-                 ot="Int16",
-                 tr=c(0.009107388, 0.009107388), # 0.009107388 is the resolution from the old series
-                 wo = "INIT_DEST = NO_DATA",
-                 co = c("COMPRESS=LZW","PREDICTOR=2"),
-                 r = "near")
+      if (all(!file.exists(c(paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon.tif"),paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon_crop.tif"),paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon_crop_mask.tif"))))) {
+        
+        if (!is_crop_enable) {
+          # reproject from sinusoidal to latlon
+          gdalwarp(srcfile = paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],".tif"),
+                   dstfile = paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon.tif"),
+                   overwrite = TRUE,
+                   t_srs = "+init=epsg:4326 +proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0",
+                   s_srs = "+proj=sinu +lon_0=-58 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs",
+                   ot="Int16",
+                   tr=c(0.009107388, 0.009107388), # 0.009107388 is the resolution from the old series
+                   wo = "INIT_DEST = NO_DATA",
+                   co = c("COMPRESS=LZW","PREDICTOR=2"),
+                   r = "near")
+        } else {
+          gdalwarp(srcfile = paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],".tif"),
+                   dstfile = paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon_crop.tif"),
+                   overwrite = TRUE,
+                   t_srs = "+init=epsg:4326 +proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0",
+                   s_srs = "+proj=sinu +lon_0=-58 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs",
+                   ot="Int16",
+                   tr=c(0.009107388, 0.009107388), # 0.009107388 is the resolution from the old series
+                   te = c(extent(crop_ext)[1],extent(crop_ext)[3],extent(crop_ext)[2],extent(crop_ext)[4]),
+                   wo = "INIT_DEST = NO_DATA",
+                   co = c("COMPRESS=LZW","PREDICTOR=2"),
+                   r = "near")
+        }
         
         # delete pre-warp file
         unlink(paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],".tif"))
       }
       
-      # proceed only if crop file doesn't exist and crop is enabled
-      if (is_crop_enable && !file.exists(paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon_crop.tif"))) {
+      # proceed only if mask file doesn't exist and is enabled
+      if (is_mask_enable && all(!file.exists(c(paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon_crop.tif"),paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon_crop_mask.tif"))))) {
         
-        # crop the file by polygon/raster
-        if (!is.na(crop_polygon)) {
-          crop(x = mask(x=raster(paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon.tif")), mask=CROP_RASTER),
-               y = CROP_POLYGON,
-               filename = paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon_crop.tif"),
-               overwrite = TRUE,
-               format="GTiff",
-               datatype = "INT2S",
-               options = c("COMPRESS=LZW","PREDICTOR=2")
-          )
+        # # crop the file by polygon/raster
+        # if (!is.na(crop_polygon)) {
+        #   crop(x = mask(x=raster(paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon.tif")), mask=CROP_RASTER),
+        #        y = CROP_POLYGON,
+        #        filename = paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon_crop.tif"),
+        #        overwrite = TRUE,
+        #        format="GTiff",
+        #        datatype = "INT2S",
+        #        options = c("COMPRESS=LZW","PREDICTOR=2")
+        #   )
+        # } else {
+        #   # crop the file by extent
+        #   crop(x = raster(paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon.tif")),
+        #        y = crop_ext,
+        #        filename = paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon_crop.tif"),
+        #        overwrite = TRUE,
+        #        format="GTiff",
+        #        datatype = "INT2S",
+        #        options = c("COMPRESS=LZW","PREDICTOR=2"))
+        # }
+        # define file name
+        if (!is_crop_enable) {
+          fname = paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon")
         } else {
-          # crop the file by extent
-          crop(x = raster(paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon.tif")),
-               y = crop_ext,
-               filename = paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon_crop.tif"),
-               overwrite = TRUE,
-               format="GTiff",
-               datatype = "INT2S",
-               options = c("COMPRESS=LZW","PREDICTOR=2"))
+          fname = paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon_crop")
         }
+        mask(x = raster(paste0(fname, ".tif")),
+             mask = MASK_POLYGON,
+             filename = paste0(fname, "_mask.tif"),
+             overwrite = TRUE,
+             format="GTiff",
+             datatype = "INT2S",
+             options = c("COMPRESS=LZW","PREDICTOR=2")
+        )
         
-        # delete pre-crop file
-        unlink(paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon.tif"))
+        # delete pre-mask file
+        unlink(paste0(fname, ".tif"))
       }
       
     }
