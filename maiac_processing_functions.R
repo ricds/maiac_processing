@@ -648,6 +648,48 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   # message
   print(paste0(Sys.time(), ": Normalizing brf in parallel finished in ", t2))
   
+  ###
+  
+  # if object is bigger than 5gb, we have to export files to disk and read it again
+  if ((object.size(BRFn)/(1024*1024*1024)) >= 5) {
+    # message
+    print(paste0(Sys.time(), ": Saving normalized brf to disk - because object is too big to hold in memory..."))
+    
+    # measure time
+    t1 = mytic()
+    
+    # create dir for normalized brf
+    norm_dir = paste0(output_dir, tmp_dir, "norm_brf/")
+    dir.create(file.path(norm_dir), showWarnings = FALSE, recursive=T)
+    
+    # vec size
+    n_samples = length(BRFn)
+    
+    # export normalized brf
+    i=1
+    for (i in 1:n_samples) {
+      writeRaster(BRFn[[i]], filename = paste0(norm_dir, "norm_brf_",i,".tif"), overwrite=T)
+      #print(i)
+    }
+    rm("BRFn")
+    gc()
+    
+    # re-read files from disk
+    BRFn = list()
+    i=1
+    for (i in 1:n_samples) {
+      BRFn[[i]] = stack(paste0(norm_dir, "norm_brf_",i,".tif"))
+      #print(i)
+    }
+   
+    # measure time
+    t2 = mytoc(t1)
+    
+    # message
+    print(paste0(Sys.time(), ": Saving normalized brf to disk finished in ", t2))
+     
+  }
+  
   # return
   return(BRFn)
 }
