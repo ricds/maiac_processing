@@ -24,7 +24,7 @@ functions_dir = paste0(dirname(rstudioapi::getActiveDocumentContext()$path),"/")
 source(paste0(functions_dir, "config.txt"))
 
 # read composite vector from the functions folder
-composite_vec = read.csv(paste0(functions_dir,"composite_vec_",composite_no,".csv"), header=F)
+composite_vec = read.csv(paste0(functions_dir,"maiac_composite_vec_",composite_no,".csv"), header=F)
 
 # function to calc evi
 f_evi = function(NIR, RED, BLUE) {
