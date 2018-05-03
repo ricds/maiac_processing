@@ -71,6 +71,9 @@ if (length(list.files(input_dir_vec[1]))==0) {
   stop(paste0(Sys.time(), ": ERROR Input directory is Empty."))
 }
 
+# set gdal directory
+gdal_setInstallation(gdal_dir)
+
 # create process directory if it doesnt exist
 dir.create(file.path(process_dir), showWarnings = FALSE, recursive=T)
 

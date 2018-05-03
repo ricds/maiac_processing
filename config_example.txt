@@ -1,3 +1,6 @@
+# specify gdal path
+gdal_dir = "C:\\OSGeo4W64\\bin\\"
+
 # specify the root folder, where the processed tiles and preview files will be placed
 process_dir = "D:/_MAIAC/"
 
@@ -75,10 +78,14 @@ tiles_to_mosaic = c("h00v01", "h00v02", "h01v00", "h01v01", "h01v02", "h01v03", 
 #tiles_to_mosaic = c("h00v01", "h00v02", "h01v00", "h01v01", "h01v02", "h01v03", "h02v00", "h02v01", "h02v02", "h02v03", "h03v00", "h03v01", "h03v02")
 
 # crop extent information in lat/lon coordinates (min_lon, max_lon, min_lat, max_lat), if is_crop_enable is set to TRUE the script will crop the file to crop_ext extent
-is_crop_enable = FALSE  # set to TRUE or FALSE
+is_crop_enable = FALSE
 # Amazonia Eva Huber, crop_ext = extent(-80, -45, -21, 9), real extent is -79.62473, -44.35324, -20.47028, 8.63236  (xmin, xmax, ymin, ymax)
 # Bamboo southwest amazon, crop_ext =  extent(-75, -66, -13, -6)
 crop_ext = NA
 # polygon to crop, set to NA if using extent
 crop_polygon = "/mnt/DATADRIVE2/ricardo_data/maiac_processing/auxiliar/AmazoniaLimits.shp"
 crop_raster = "/mnt/DATADRIVE2/ricardo_data/maiac_processing/auxiliar/amazonia_raster.tif"
+
+# to mask the raster by a polygon, excluding areas outside of it, set TRUE then the filename in the mask_polygon variable ( not tested :) )
+is_mask_enable = FALSE
+mask_polygon = NA
