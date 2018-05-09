@@ -212,7 +212,7 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   }
   
   # put the bands together so its easier to calc the median
-  nadir_brf_reflectance_per_band = ReorderBrickPerBand(nadir_brf_reflectance)
+  nadir_brf_reflectance_per_band = ReorderBrickPerBand(nadir_brf_reflectance, output_dir, tmp_dir)
   rm(list = c("nadir_brf_reflectance"))
   
   # 7) calculate the median of each pixel using the remaining (best) pixels, and return a brick with 9 rasters (1-8 band, and no_samples of band1)
