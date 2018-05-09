@@ -61,7 +61,7 @@ isTileProcessed = function(tile, input_dir, output_dir, tmp_dir) {
   result = FALSE
   
   #x=tile[i]
-  if (file.exists(paste0(output_dir,tmp_dir,"Processed.",tile,".tif"))) {
+  if (file.exists(paste0(tmp_dir,"Processed.",tile,".tif"))) {
     # message
     print(paste0(Sys.time(), ": Tile ",tile," is already processed, going to the next iteration."))
     
@@ -351,7 +351,7 @@ ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, n
     # check if x[i] converted tif file exists
     # if it does, just throw some message
     # if it doesnt, try to convert, if it works nice just go on, if it doesnt try to download the tile and process it again
-    if (any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif")))) {
+    if (any(!file.exists(paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif")))) {
       # message
       print(paste0(Sys.time(), ": Converting HDF to TIF file ",i," from ",length(x)," -> ",x1))
       
@@ -366,25 +366,25 @@ ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, n
       # retrieve one sub-data set each time
       for (j in 1:length(sds_to_retrieve_mat[i,])) { #sprintf("%02d",sds_to_retrieve_mat[i,][j])
         if (any(as.numeric(sds_to_retrieve_mat[i,][j]) == c(15,16))) {
-          gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]), a_nodata=-99999)
+          gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]), a_nodata=-99999)
         } else
-          gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]))
+          gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]))
       }
       
       # check if file exists after converting
       # if it doesn't, it can mean two things: (1) converting was somehow interrupted -> convert again, or (2) HDF is corrupted -> download again
       try_count = 0
-      while (any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif"))) & try_count < 3) {
+      while (any(!file.exists(paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif"))) & try_count < 3) {
         
         # option 1, problem in conversion
         # solution: try to convert it again, and test for all files, test this 2 times
-        if (any(file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif"))) & try_count < 2) {
+        if (any(file.exists(paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif"))) & try_count < 2) {
           # try to convert again
           for (j in 1:length(sds_to_retrieve_mat[i,])) { #sprintf("%02d",sds_to_retrieve_mat[i,][j])
             if (any(as.numeric(sds_to_retrieve_mat[i,][j]) == c(15,16))) {
-              gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]), a_nodata=-99999)
+              gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]), a_nodata=-99999)
             } else
-              gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]))
+              gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]))
           }
           
           # counter
@@ -398,7 +398,7 @@ ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, n
         # option 2, corrupted HDF
         # solution: download again, test download for 5 times, NASA website sometimes doesn't respond
         try_count_download = 0
-        while (any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif"))) & try_count_download < 5 & download_enabled) {
+        while (any(!file.exists(paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif"))) & try_count_download < 5 & download_enabled) {
           # message
           print(paste0(Sys.time(), ": Error while converting file ",i," from ",length(x)," -> ",x1))
           
@@ -417,9 +417,9 @@ ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, n
           # try to convert again
           for (j in 1:length(sds_to_retrieve_mat[i,])) { #sprintf("%02d",sds_to_retrieve_mat[i,][j])
             if (any(as.numeric(sds_to_retrieve_mat[i,][j]) == c(15,16))) {
-              gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]), a_nodata=-99999)
+              gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]), a_nodata=-99999)
             } else
-              gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]))
+              gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]))
           }
           
           # count
@@ -427,7 +427,7 @@ ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, n
         }
         
         # check if the file was extracted
-        if (all(file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif")))) {
+        if (all(file.exists(paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif")))) {
           print(paste0(Sys.time(), ": File ",x1," was downloaded and extracted with sucess. Error avoided (i hope), oh yeah!"))
         }
         
@@ -438,7 +438,7 @@ ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, n
     }
     
     # file does not exist... report in a .txt
-    if (any(!file.exists(paste0(output_dir,tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif")))) {
+    if (any(!file.exists(paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif")))) {
       print(paste0(Sys.time(), ": ERROR on file ",i," from ",length(x),", could not convert hdf2tif -> ",x1))
       write(x1, file=paste0(process_dir,"hdf2tif_convert_fail.txt"), append=TRUE)
     }
@@ -478,7 +478,7 @@ LoadMAIACFiles = function(raster_filename, output_dir, tmp_dir, type) {
   
   # loop though files and load the files
   for(i in 1:length(raster_filename)) {
-    raster_brick[[i]] = brick(paste0(output_dir,tmp_dir,raster_filename[i],"_",type_number,".tif"))
+    raster_brick[[i]] = brick(paste0(tmp_dir,raster_filename[i],"_",type_number,".tif"))
   }
   
   # return
@@ -804,10 +804,10 @@ ApplyMaskOnBrick = function(raster_brick, mask_brick) {
 
 # function to create extreme azimutal angle >80 mask and apply to BRF
 FilterEA = function(raster_brick, product_fname, output_dir, tmp_dir) {
-  #cosSZA = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "cosSZA")
+  #cosSZA = LoadMAIACFiles(product_fname, tmp_dir, "cosSZA")
   #cosSZA = FilterValOutRangeToNA(cosSZA, -10000, 10000)
   #acosSZA = lapply(cosSZA,FUN = function(raster_brick) calc(raster_brick, fun = acos))
-  SAZ = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "SAZ")
+  SAZ = LoadMAIACFiles(product_fname, tmp_dir, "SAZ")
   SAZ = FilterValOutRangeToNA(SAZ, -10000, 80)
   
   # function to create the mask
@@ -843,7 +843,7 @@ ReorderBrickPerBand = function(raster_brick, output_dir, tmp_dir) {
     t1 = mytic()
     
     # create dir for normalized brf
-    norm_dir = paste0(output_dir,tmp_dir,"norm_brf\\")
+    norm_dir = paste0(tmp_dir,"norm_brf\\")
     dir.create(file.path(norm_dir), showWarnings = FALSE, recursive=T)
     
     # vec size
@@ -956,9 +956,9 @@ CalcMedianBRF = function(raster_brick_per_band, no_cores, log_fname, output_dir,
     
     # calc median, if i == 1 save the number of pixels, otherwise just save the values
     if (names(i)[1]=="X1") {
-      writeRaster(round(calc(i, fun=CalcMedianAndN)*10000,0), filename=paste0(output_dir, tmp_dir, "Band_",names(i)[1],".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
+      writeRaster(round(calc(i, fun=CalcMedianAndN)*10000,0), filename=paste0(tmp_dir, "Band_",names(i)[1],".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
     } else
-      writeRaster(round(calc(i, fun=CalcMedianAndN)[[1]]*10000,0), filename=paste0(output_dir, tmp_dir, "Band_",names(i)[1],".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
+      writeRaster(round(calc(i, fun=CalcMedianAndN)[[1]]*10000,0), filename=paste0(tmp_dir, "Band_",names(i)[1],".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
     
     # return 0 to the foreach
     c(0)
@@ -968,8 +968,8 @@ CalcMedianBRF = function(raster_brick_per_band, no_cores, log_fname, output_dir,
   stopCluster(cl)
   
   # open the rasters and make a brick
-  b1 = brick(paste0(output_dir, tmp_dir, "Band_X",1,".tif"))
-  median_raster_brick_per_band = stack(c(b1[[1]],paste0(output_dir, tmp_dir, "Band_X",c(2:8),".tif"),b1[[2]]))
+  b1 = brick(paste0(tmp_dir, "Band_X",1,".tif"))
+  median_raster_brick_per_band = stack(c(b1[[1]],paste0(tmp_dir, "Band_X",c(2:8),".tif"),b1[[2]]))
   
   # put a name to the bands
   names(median_raster_brick_per_band)=c("band1","band2","band3","band4","band5","band6","band7","band8","no_samples")
@@ -1028,7 +1028,7 @@ SaveProcessedTile = function(medianBRF, output_dir, tmp_dir, tile) {
   
   # write to file
   writeRaster(b, filename=paste0(output_dir, "Processed.", tile, ".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
-  #writeRaster(medianBRF, filename=paste0(output_dir,tmp_dir,"Processed.",tile,".tif"), format="GTiff", overwrite=TRUE)
+  #writeRaster(medianBRF, filename=paste0(tmp_dir,"Processed.",tile,".tif"), format="GTiff", overwrite=TRUE)
   
   # message
   print(paste0(Sys.time(), ": Tile was saved: ",tile))
@@ -1042,7 +1042,7 @@ MosaicTilesAndSave = function(x, output_dir, tmp_dir, year, day) {
   print("Mosaicking the tiles...")
   
   # mosaic and save files
-  m=mosaic_rasters(paste0(output_dir,tmp_dir,x), dst_dataset = paste0(output_dir,composite_fname,"_",year,day[length(day)],".tif"), verbose=F, output_Raster = TRUE, ot="Int16", co = c("COMPRESS=DEFLATE","PREDICTOR=2","ZLEVEL=3"))
+  m=mosaic_rasters(paste0(tmp_dir,x), dst_dataset = paste0(output_dir,composite_fname,"_",year,day[length(day)],".tif"), verbose=F, output_Raster = TRUE, ot="Int16", co = c("COMPRESS=DEFLATE","PREDICTOR=2","ZLEVEL=3"))
   
   # return
   return(m)

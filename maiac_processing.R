@@ -163,10 +163,10 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
     return(0)
   
   # set temporary directory
-  tmp_dir = paste0("tmp",year,day[length(day)],"/")
+  tmp_dir = paste0(tempdir(), "\\tmp_",tile,"_",year,day[length(day)],"/")
   
   # create temporary directory
-  dir.create(file.path(output_dir, tmp_dir), showWarnings = FALSE)
+  dir.create(file.path(tmp_dir), showWarnings = FALSE)
   
   # 1) get filenames from the available products and parameters files for the iteration
   product_fname = GetFilenameVec(product, input_dir, downloaded_files_dir, tile, year, day, offset_days=0)
@@ -236,7 +236,7 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   rm(list = c("median_brf_reflectance"))
   
   # delete temporary directory
-  unlink(file.path(output_dir, tmp_dir), recursive=TRUE)
+  unlink(file.path(tmp_dir), recursive=TRUE)
   
   # measure time
   t2 = mytoc(t1)
