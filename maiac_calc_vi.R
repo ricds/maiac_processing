@@ -45,8 +45,8 @@ f_ndvi = function(NIR, RED) {
 ff_ndvi = cmpfun(f_ndvi)
 
 # Initiate cluster
-cl = parallel::makeCluster(no_cores)
-registerDoParallel(cl)
+#cl = parallel::makeCluster(no_cores)
+#registerDoParallel(cl)
 
 # process (can use parallel if the mosaic is not huge like the whole south america)
 for (i in 1:dim(composite_vec)[1]) {
@@ -57,40 +57,42 @@ for (i in 1:dim(composite_vec)[1]) {
   # if there are files with the given composite name
   if (length(file_list)!=0) {
     
-    # get data
+    # check if vi exist
     if(length(grep(file_list, pattern="ndvi", value = T))==0 || length(grep(file_list, pattern="evi", value = T))==0) {
+      
+      # get bands
       maiac_band1 = raster(grep(file_list, pattern="band1", value=T))/10000
       maiac_band2 = raster(grep(file_list, pattern="band2", value=T))/10000
       maiac_band3 = raster(grep(file_list, pattern="band3", value=T))/10000
+      
+      # apply function
+      if (length(grep(file_list, pattern="ndvi", value = T))==0) {
+        writeRaster(x=overlay(maiac_band2, maiac_band1, fun=ff_ndvi),
+                    filename = paste0(dirname(grep(file_list, pattern="band1", value=T)), "/", mosaic_base_filename, "_ndvi_", composite_vec[i,], ".tif"),
+                    overwrite = TRUE, format = "GTiff",
+                    datatype = "INT2S",
+                    options = c("COMPRESS=LZW","PREDICTOR=2"))
+      }
+      
+      if (length(grep(file_list, pattern="evi", value = T))==0) {
+        writeRaster(x=overlay(maiac_band2, maiac_band1, maiac_band3, fun=ff_evi),
+                    filename = paste0(dirname(grep(file_list, pattern="band1", value=T)), "/", mosaic_base_filename, "_evi_", composite_vec[i,], ".tif"),
+                    overwrite = TRUE, format = "GTiff",
+                    datatype = "INT2S",
+                    options = c("COMPRESS=LZW","PREDICTOR=2"))
+      }
+      
+      rm("maiac_band2","maiac_band1","maiac_band3")
     }
-    
-    # apply function
-    if (length(grep(file_list, pattern="ndvi", value = T))==0) {
-      writeRaster(x=overlay(maiac_band2, maiac_band1, fun=ff_ndvi),
-                  filename = paste0(dirname(grep(file_list, pattern="band1", value=T)), "/", mosaic_base_filename, "_ndvi_", composite_vec[i,], ".tif"),
-                  overwrite = TRUE, format = "GTiff",
-                  datatype = "INT2S",
-                  options = c("COMPRESS=LZW","PREDICTOR=2"))
-    }
-    
-    if (length(grep(file_list, pattern="evi", value = T))==0) {
-      writeRaster(x=overlay(maiac_band2, maiac_band1, maiac_band3, fun=ff_evi),
-                  filename = paste0(dirname(grep(file_list, pattern="band1", value=T)), "/", mosaic_base_filename, "_evi_", composite_vec[i,], ".tif"),
-                  overwrite = TRUE, format = "GTiff",
-                  datatype = "INT2S",
-                  options = c("COMPRESS=LZW","PREDICTOR=2"))
-    }
-    
   }
   
   # clear
-  rm("maiac_band2","maiac_band1","maiac_band3")
   gc()
   removeTmpFiles(h=0)
 }
 
 # finish cluster
-stopCluster(cl)
+#stopCluster(cl)
 
 # message
 print("Processing finished.")
