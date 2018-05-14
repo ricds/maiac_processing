@@ -1,4 +1,4 @@
-# script to create composite vector
+# script to create "x days" composite vector
 
 # create day matrix
 composite_no = 16
@@ -29,4 +29,15 @@ for (i in 1:364) {
 }
 
 # export
-write(composite_vec, file = paste0("composite_vec_",composite_no,".csv"))
+write(composite_vec, file = paste0("maiac_composite_vec_",composite_no,".csv"))
+
+
+
+
+# create monthly composite vector -----------------------------------------
+
+mat1 = expand.grid(sprintf("%02d",1:12), 2000:2017)
+mat1 = paste0(mat1$Var2, "_", mat1$Var1)
+
+# export
+write(mat1, file = "maiac_composite_vec_month.csv")
