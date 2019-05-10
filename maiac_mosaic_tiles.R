@@ -84,6 +84,12 @@ f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster","gdalUtils","rgdal")
                        co = c("COMPRESS=LZW","PREDICTOR=2"))
       }
       
+      # set source crs
+      source_srs = "+proj=sinu +lon_0=-58 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
+      if (res(stack(paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],".tif")))[1] != 1000) {
+        source_srs = "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
+      }
+      
       # proceed only if latlon and crop file doesn't exist
       if (all(!file.exists(c(paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon.tif"),paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon_crop.tif"),paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon_crop_mask.tif"))))) {
         
@@ -93,23 +99,25 @@ f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster","gdalUtils","rgdal")
                    dstfile = paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon.tif"),
                    overwrite = TRUE,
                    t_srs = "+init=epsg:4326 +proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0",
-                   s_srs = "+proj=sinu +lon_0=-58 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs",
+                   s_srs = source_srs,
                    ot="Int16",
                    tr=c(0.009107388, 0.009107388), # 0.009107388 is the resolution from the old series
                    wo = "INIT_DEST = NO_DATA",
                    co = c("COMPRESS=LZW","PREDICTOR=2"),
+                   te = c(-113.9209, -61.15665, -2.073097, 14.38913),
                    r = "near")
         } else {
           gdalwarp(srcfile = paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],".tif"),
                    dstfile = paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon_crop.tif"),
                    overwrite = TRUE,
                    t_srs = "+init=epsg:4326 +proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0",
-                   s_srs = "+proj=sinu +lon_0=-58 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs",
+                   s_srs = source_srs,
                    ot="Int16",
                    tr=c(0.009107388, 0.009107388), # 0.009107388 is the resolution from the old series
                    te = c(extent(crop_ext)[1],extent(crop_ext)[3],extent(crop_ext)[2],extent(crop_ext)[4]),
                    wo = "INIT_DEST = NO_DATA",
                    co = c("COMPRESS=LZW","PREDICTOR=2"),
+                   te = c(-113.9209, -61.15665, -2.073097, 14.38913),
                    r = "near")
         }
         

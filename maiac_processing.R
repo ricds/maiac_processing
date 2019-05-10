@@ -28,6 +28,11 @@
 ## http://www.ctahr.hawaii.edu/grem/mod13ug/sect0005.html, http://glcf.umd.edu/data/modis/
 ## to list memory: sort( sapply(ls(),function(x){object.size(get(x))})) 
 ##################################################
+## Some Websites:
+## https://lpdaac.usgs.gov/products/mcd19a1v006/
+## https://ladsweb.modaps.eosdis.nasa.gov/filespec/MODIS/6/MCD19A1
+## https://ladsweb.modaps.eosdis.nasa.gov/missions-and-measurements/products/maiac/MCD19A1/
+##################################################
 
 # clean environment
 rm(list = ls())
@@ -43,7 +48,8 @@ library(rstudioapi)  #install.packages("rstudioapi")
 library(compiler)  #install.packages("compiler")
 library(Rcpp)  #install.packages("Rcpp")
 library(itertools)  #install.packages("itertools")
-library(median2rcpp)  # download.file("https://www.dropbox.com/s/chneec889dl0nck/median2rcpp_0.1.0.tar.gz?raw=1", destfile = "median2rcpp_0.1.0.tar.gz", mode="wb")  # system({'R CMD INSTALL "median2rcpp_0.1.0.tar.gz"'})
+library(plyr)  #install.packages("plyr")
+library(median2rcpp)  # download.file("https://www.dropbox.com/s/chneec889dl0nck/median2rcpp_0.1.0.tar.gz?raw=1", destfile = "median2rcpp_0.1.0.tar.gz", mode="wb"); system({'R CMD INSTALL "median2rcpp_0.1.0.tar.gz"'})
 
 # pre-compile code to try to speed things up - not sure if it works - must run the command twice don't know why
 enableJIT(3)
@@ -105,8 +111,8 @@ dir.create(file.path(output_dir), showWarnings = FALSE, recursive=T)
 dir.create(file.path(downloaded_files_dir), showWarnings = FALSE, recursive=T)
 
 # product name MAIACTBRF, MAIACABRF, MAIACRTLS, don't change this
-product = c("MAIACTBRF","MAIACABRF")
-parameters = "MAIACRTLS"
+product = c("MAIACTBRF","MAIACABRF","MCD19A1")
+parameters = c("MAIACRTLS","MCD19A3")
 
 # url to download maiac files for south america in case of corrupted .hdf or missing RTLS file
 maiac_ftp_url = "ftp://maiac@dataportal.nccs.nasa.gov/DataRelease/SouthAmerica/"
@@ -129,7 +135,7 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   
   # message
   print("...")
-  print(paste0(Sys.time(), ": Start processing a new composite..."))
+  print(paste0(Sys.time(), ": Start processing a new composite... j=", j, " from ", dim(loop_mat)[1]))
   
   # measure time
   t1 = mytic()
@@ -151,8 +157,18 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
     day = day_mat[as.numeric(loop_mat[j,1]),]
   }
   
+  # test if this iteration is old MAIAC files or new MCD19A1 files
+  isMCD = IsMCD(input_dir, day, year, tile)
+  if (isMCD) {
+    product = "MCD19A1"
+    parameters = "MCD19A3"
+  } else {
+    product = c("MAIACTBRF","MAIACABRF")
+    parameters = "MAIACRTLS"
+  }
+  
   # create nan rasters for tile in case it is needed
-  nan_tile = CreateNanTiles(tile, nan_tiles_dir, latlon_tiles_dir)
+  nan_tile = CreateNanTiles(tile, nan_tiles_dir, latlon_tiles_dir, isMCD)
   
   # check if composite processed file already exist, otherwise just skip to next iteration; manual_run overrides this and overwrite files
   if (IsTileCompositeProcessed(composite_fname, tile, year, day, output_dir, overwrite_files))
@@ -173,22 +189,22 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   parameter_fname = GetFilenameVec(parameters, input_dir, downloaded_files_dir, tile, year, day, offset_days=24)
 
   # 2) (parallel computing) convert files from hdf to geotif using gdal_translate
-  ConvertHDF2TIF(product_fname, parameter_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname, is_ea_filter, is_qa_filter, downloaded_files_dir, download_enabled, process_dir)
+  ConvertHDF2TIF(product_fname, parameter_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname, is_ea_filter, is_qa_filter, downloaded_files_dir, download_enabled, process_dir, isMCD)
   
   # remove directory from filenames, return only the "filenames".hdf
   product_fname = basename(product_fname)
   parameter_fname = basename(parameter_fname)
   
   # 3) load .tif files needed for BRF normalization
-  brf_reflectance = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "sur_refl")
-  brf_fv = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "Fv")
-  brf_fg = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "Fg")
-  rtls_kiso = LoadMAIACFiles(parameter_fname, output_dir, tmp_dir, "Kiso")
-  rtls_kvol = LoadMAIACFiles(parameter_fname, output_dir, tmp_dir, "Kvol")
-  rtls_kgeo = LoadMAIACFiles(parameter_fname, output_dir, tmp_dir, "Kgeo")
+  brf_reflectance = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "sur_refl", isMCD)
+  brf_fv = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "Fv", isMCD)
+  brf_fg = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "Fg", isMCD)
+  rtls_kiso = LoadMAIACFiles(parameter_fname, output_dir, tmp_dir, "Kiso", isMCD)
+  rtls_kvol = LoadMAIACFiles(parameter_fname, output_dir, tmp_dir, "Kvol", isMCD)
+  rtls_kgeo = LoadMAIACFiles(parameter_fname, output_dir, tmp_dir, "Kgeo", isMCD)
   
   # 4) (parallel computing) apply brf normalization to nadir for each date using the respective RTLS parameters or nearest RTLS file, and the eq. from MAIAC documentation: (BRFn = BRF * (kL - 0.04578*kV - 1.10003*kG)/( kL + FV*kV + FG*kG))
-  nadir_brf_reflectance = ConvertBRFNadir(brf_reflectance, brf_fv, brf_fg, rtls_kiso, rtls_kvol, rtls_kgeo, tile, year, output_dir, no_cores, log_fname, view_geometry)
+  nadir_brf_reflectance = ConvertBRFNadir(brf_reflectance, brf_fv, brf_fg, rtls_kiso, rtls_kvol, rtls_kgeo, tile, year, output_dir, no_cores, log_fname, view_geometry, isMCD)
   rm(list = c("brf_reflectance", "brf_fv", "brf_fg", "rtls_kiso", "rtls_kvol", "rtls_kgeo"))
   
   # test if nadir_brf_reflectance is empty, and return nan tile if it is true
@@ -228,7 +244,7 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   }
   png(filename=paste0(tile_preview_dir,"fig_",composite_fname,"_",tile,"_",year,composite_num,".png"), type="cairo", units="cm", width=15, height=15, pointsize=10, res=300)
   par(oma=c(4,4,4,4))
-  plot(median_brf_reflectance/10000)
+  plot(stack(median_brf_reflectance[[1:8]]/10000, median_brf_reflectance[[9]]))
   dev.off()
   
   # 9) save the processed composite

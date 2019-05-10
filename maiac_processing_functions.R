@@ -132,9 +132,10 @@ IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs
 }
 
 # function to create nan tiles, to use in case the time series dont have data for one tile on a given date
-CreateNanTiles = function(tile, nan_tiles_dir, latlon_tiles_dir) {
+# NOTE: this function is not fully updated to include the MCD19A1 product; it was just bypassed to make it work with existing nantiles manually created
+CreateNanTiles = function(tile, nan_tiles_dir, latlon_tiles_dir, isMCD) {
   # check if nan tile already exists
-  if (!file.exists(paste0(nan_tiles_dir,"nantile",".",tile,".tif"))) {
+  if (!file.exists(paste0(nan_tiles_dir,"nantile",".",tile,".tif")) && !file.exists(paste0(nan_tiles_dir,"MCD19A1_nantile",".",tile,".tif"))) {
     # create tmpnanfiles directory
     dir.create(file.path(nan_tiles_dir, "tmpnanfiles/"), showWarnings = FALSE)
     
@@ -154,7 +155,11 @@ CreateNanTiles = function(tile, nan_tiles_dir, latlon_tiles_dir) {
     # delete tmpnanfiles directory
     unlink(file.path(nan_tiles_dir, "tmpnanfiles/"), recursive=TRUE)
   } else {
-    r = raster(paste0(nan_tiles_dir,"nantile.",tile,".tif"))
+    if (isMCD) {
+      r = raster(paste0(nan_tiles_dir,"MCD19A1_nantile.",tile,".tif"))
+    } else {
+      r = raster(paste0(nan_tiles_dir,"nantile.",tile,".tif"))
+    }
   }
   return(r)
 }
@@ -170,13 +175,18 @@ GetFilenameVec = function(type, input_dir, downloaded_files_dir, tile, year, day
   # loop to find rtls and increase offset on each iteration
   while(length(result)==0 & continue_processing) {
     # create combinatios of product, tile, year and day
-    combinations = expand.grid(type, paste0(".",tile,"."), year, sprintf("%03s",day2))
+    if (type == "MCD19A1" | type == "MCD19A3") {
+      combinations = expand.grid(type, paste0(".A", year, sprintf("%03s",day2),"."), tile)
+    } else {
+      combinations = expand.grid(type, paste0(".",tile,"."), year, sprintf("%03s",day2))
+    }
     
     # merge the combinations
     combinations = paste0(combinations$Var1, combinations$Var2, combinations$Var3, combinations$Var4)
     
     # get files from input_dir
     result = list.files(input_dir, pattern=paste(combinations,collapse="|"), recursive = TRUE, full.names = TRUE)
+    result = grep("*.hdf$", result, value=T)
     
     # get files from downloaded_files_dir
     result2 = list.files(downloaded_files_dir, pattern=paste(combinations,collapse="|"), recursive = TRUE, full.names = TRUE)
@@ -193,7 +203,7 @@ GetFilenameVec = function(type, input_dir, downloaded_files_dir, tile, year, day
       continue_processing=FALSE
     } else {
       # if no results and its rtls try to increase offset
-      if (type=="MAIACRTLS") {
+      if (type == "MAIACRTLS" | type == "MCD19A3") {
         # test if the composite rtls is available and remove the rest
         if (offset_days>0 & any(offset_days == c(8,16,24))) {
           # raise offset in 8
@@ -314,27 +324,47 @@ RemoveDirectoryFromFilenameVec = function(product_string) {
 }
 
 # function to convert BRF and RTLS files from .HDF to .TIF from an input directory "input_dir" to a temporary output directory "output_dir"/tmp
-ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname, is_ea_filter, is_qa_filter, downloaded_files_dir, download_enabled, process_dir) {
+ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname, is_ea_filter, is_qa_filter, downloaded_files_dir, download_enabled, process_dir, isMCD) {
   # message
   print(paste0(Sys.time(), ": Converting HDFs to TIF in parallel..."))
   
   # measure time
   t1 = mytic()
   
+  # define which sds according to maiac product
+  if (isMCD) {
+    sds_to_retrieve_brf_num = c(1:8,33,34)
+    sds_to_retrieve_brf = sprintf("%02d",sds_to_retrieve_brf_num)
+    # NOTE: have to find these indices if we would like to filter the data
+    # if (is_ea_filter)
+    #   sds_to_retrieve_brf = c(sds_to_retrieve_brf,"13")
+    # if (is_qa_filter)
+    #   sds_to_retrieve_brf = c(sds_to_retrieve_brf,"06")
+    sds_to_retrieve_rtls = c("1","2","3")
+    
+    # create sds_suffix and prefix
+    # TO DO
+    sds_preffix = "HDF4_EOS:EOS_GRID:"
+    sds_suffix_brf = c(":grid1km:Sur_refl1",":grid1km:Sur_refl2",":grid1km:Sur_refl3",":grid1km:Sur_refl4",":grid1km:Sur_refl5",":grid1km:Sur_refl6",":grid1km:Sur_refl7",":grid1km:Sur_refl8",":grid1km:Sur_refl9",":grid1km:Sur_refl10",":grid1km:Sur_refl11",":grid1km:Sur_refl12",":grid1km:Sigma_BRFn1",":grid1km:Sigma_BRFn2",":grid1km:Snow_Fraction",":grid1km:Snow_Grain_Size",":grid1km:Snow_Fit",":grid1km:Status_QA",":grid500m:Sur_refl_500m1",":grid500m:Sur_refl_500m2",":grid500m:Sur_refl_500m3",":grid500m:Sur_refl_500m4",":grid500m:Sur_refl_500m5",":grid500m:Sur_refl_500m6",":grid500m:Sur_refl_500m7",":grid5km:cosSZA",":grid5km:cosVZA",":grid5km:RelAZ",":grid5km:Scattering_Angle",":grid5km:SAZ",":grid5km:VAZ",":grid5km:Glint_Angle",":grid5km:Fv",":grid5km:Fg")
+    sds_suffix_rtls = c(":grid1km:Kiso",":grid1km:Kvol",":grid1km:Kgeo",":grid1km:sur_albedo",":UpdateDay")
+  } else {
+    # SDS numbers
+    sds_to_retrieve_brf = c("01","15","16")
+    if (is_ea_filter)
+      sds_to_retrieve_brf = c(sds_to_retrieve_brf,"13")
+    if (is_qa_filter)
+      sds_to_retrieve_brf = c(sds_to_retrieve_brf,"06")
+    sds_to_retrieve_rtls = c("1","2","3")
+    
+    # create sds_suffix and prefix
+    sds_preffix = "HDF4_EOS:EOS_GRID:"
+    sds_suffix_brf = c(":grid1km:sur_refl",":grid1km:Sigma_BRFn",":grid1km:Snow_Fraction",":grid1km:Snow_Grain_Diameter",":grid1km:Snow_Fit",":grid1km:Status_QA",":grid500m:sur_refl_500m",":grid5km:cosSZA",":grid5km:cosVZA",":grid5km:RelAZ",":grid5km:Scattering_Angle",":grid5km:Glint_Angle",":grid5km:SAZ",":grid5km:VAZ",":grid5km:Fv",":grid5km:Fg")
+    sds_suffix_rtls = c(":grid1km:Kiso",":grid1km:Kvol",":grid1km:Kgeo",":grid1km:sur_albedo",":UpdateDay")
+  }
+  
   # create sds_to_retrieve list
-  sds_to_retrieve_brf = c("01","15","16")
-  if (is_ea_filter)
-    sds_to_retrieve_brf = c(sds_to_retrieve_brf,"13")
-  if (is_qa_filter)
-    sds_to_retrieve_brf = c(sds_to_retrieve_brf,"06")
-  sds_to_retrieve_rtls = c("1","2","3")
-  sds_to_retrieve_mat = rbind(matrix(sds_to_retrieve_brf,length(x),3, byrow=T),matrix(sds_to_retrieve_rtls,length(y),3, byrow=T))
-  
-  # create sds_suffix and prefix
-  sds_preffix = "HDF4_EOS:EOS_GRID:"
-  sds_suffix_brf = c(":grid1km:sur_refl",":grid1km:Sigma_BRFn",":grid1km:Snow_Fraction",":grid1km:Snow_Grain_Diameter",":grid1km:Snow_Fit",":grid1km:Status_QA",":grid500m:sur_refl_500m",":grid5km:cosSZA",":grid5km:cosVZA",":grid5km:RelAZ",":grid5km:Scattering_Angle",":grid5km:Glint_Angle",":grid5km:SAZ",":grid5km:VAZ",":grid5km:Fv",":grid5km:Fg")
-  sds_suffix_rtls = c(":grid1km:Kiso",":grid1km:Kvol",":grid1km:Kgeo",":grid1km:sur_albedo",":UpdateDay")
-  
+  sds_to_retrieve_mat = rbind.fill.matrix(matrix(sds_to_retrieve_brf,length(x),length(sds_to_retrieve_brf), byrow=T),matrix(sds_to_retrieve_rtls,length(y),length(sds_to_retrieve_rtls), byrow=T))
+
   # merge x and y
   x = c(x,y)
   
@@ -351,37 +381,38 @@ ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, n
     # check if x[i] converted tif file exists
     # if it does, just throw some message
     # if it doesnt, try to convert, if it works nice just go on, if it doesnt try to download the tile and process it again
-    if (any(!file.exists(paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif")))) {
+    if (any(!file.exists(paste0(tmp_dir,x1,"_",na.omit(sds_to_retrieve_mat[i,]),".tif")))) {
       # message
       print(paste0(Sys.time(), ": Converting HDF to TIF file ",i," from ",length(x)," -> ",x1))
       
       # get the sds list
-      #sds_list = get_subdatasets(paste0(input_dir,x[i]))  # slooooow
+      #sds_list = get_subdatasets(paste0(x[i]))  # slooooow
       #sds_list = paste0(sds_preffix,paste0(input_dir,x[i]),sds_suffix)  # fast!
       if (sds_to_retrieve_mat[i,1] == "01") {
         sds_list = paste0(sds_preffix,x[i],sds_suffix_brf)  # fast!
-      } else
+      } else {
         sds_list = paste0(sds_preffix,x[i],sds_suffix_rtls)  # fast!
+      }
       
       # retrieve one sub-data set each time
-      for (j in 1:length(sds_to_retrieve_mat[i,])) { #sprintf("%02d",sds_to_retrieve_mat[i,][j])
-        if (any(as.numeric(sds_to_retrieve_mat[i,][j]) == c(15,16))) {
-          gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]), a_nodata=-99999)
+      for (j in 1:length(na.omit(sds_to_retrieve_mat[i,]))) { #sprintf("%02d",sds_to_retrieve_mat[i,][j])
+        if (any(as.numeric(sds_to_retrieve_mat[i,][j]) == c(15,16,33,34))) {
+          gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=T, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]), a_nodata=-99999)
         } else
-          gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]))
+          gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=T, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]))
       }
       
       # check if file exists after converting
       # if it doesn't, it can mean two things: (1) converting was somehow interrupted -> convert again, or (2) HDF is corrupted -> download again
       try_count = 0
-      while (any(!file.exists(paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif"))) & try_count < 3) {
+      while (any(!file.exists(paste0(tmp_dir,x1,"_",na.omit(sds_to_retrieve_mat[i,]),".tif"))) & try_count < 3) {
         
         # option 1, problem in conversion
         # solution: try to convert it again, and test for all files, test this 2 times
-        if (any(file.exists(paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif"))) & try_count < 2) {
+        if (any(file.exists(paste0(tmp_dir,x1,"_",na.omit(sds_to_retrieve_mat[i,]),".tif"))) & try_count < 2) {
           # try to convert again
-          for (j in 1:length(sds_to_retrieve_mat[i,])) { #sprintf("%02d",sds_to_retrieve_mat[i,][j])
-            if (any(as.numeric(sds_to_retrieve_mat[i,][j]) == c(15,16))) {
+          for (j in 1:length(na.omit(sds_to_retrieve_mat[i,]))) { #sprintf("%02d",sds_to_retrieve_mat[i,][j])
+            if (any(as.numeric(sds_to_retrieve_mat[i,][j]) == c(15,16,33,34))) {
               gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]), a_nodata=-99999)
             } else
               gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]))
@@ -398,7 +429,7 @@ ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, n
         # option 2, corrupted HDF
         # solution: download again, test download for 5 times, NASA website sometimes doesn't respond
         try_count_download = 0
-        while (any(!file.exists(paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif"))) & try_count_download < 5 & download_enabled) {
+        while (any(!file.exists(paste0(tmp_dir,x1,"_",na.omit(sds_to_retrieve_mat[i,]),".tif"))) & try_count_download < 5 & download_enabled) {
           # message
           print(paste0(Sys.time(), ": Error while converting file ",i," from ",length(x)," -> ",x1))
           
@@ -415,8 +446,8 @@ ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, n
             sds_list = paste0(sds_preffix,paste0(downloaded_files_dir,x1),sds_suffix_rtls)  # fast!
           
           # try to convert again
-          for (j in 1:length(sds_to_retrieve_mat[i,])) { #sprintf("%02d",sds_to_retrieve_mat[i,][j])
-            if (any(as.numeric(sds_to_retrieve_mat[i,][j]) == c(15,16))) {
+          for (j in 1:length(na.omit(sds_to_retrieve_mat[i,]))) { #sprintf("%02d",sds_to_retrieve_mat[i,][j])
+            if (any(as.numeric(sds_to_retrieve_mat[i,][j]) == c(15,16,33,34))) {
               gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]), a_nodata=-99999)
             } else
               gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]))
@@ -427,7 +458,7 @@ ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, n
         }
         
         # check if the file was extracted
-        if (all(file.exists(paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif")))) {
+        if (all(file.exists(paste0(tmp_dir,x1,"_",na.omit(sds_to_retrieve_mat[i,]),".tif")))) {
           print(paste0(Sys.time(), ": File ",x1," was downloaded and extracted with sucess. Error avoided (i hope), oh yeah!"))
         }
         
@@ -438,7 +469,7 @@ ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, n
     }
     
     # file does not exist... report in a .txt
-    if (any(!file.exists(paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,],".tif")))) {
+    if (any(!file.exists(paste0(tmp_dir,x1,"_",na.omit(sds_to_retrieve_mat[i,]),".tif")))) {
       print(paste0(Sys.time(), ": ERROR on file ",i," from ",length(x),", could not convert hdf2tif -> ",x1))
       write(x1, file=paste0(process_dir,"hdf2tif_convert_fail.txt"), append=TRUE)
     }
@@ -459,26 +490,81 @@ ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, n
 ConvertHDF2TIF = cmpfun(ConvertHDF2TIF)
 
 # function to load files of a specific type from the temporary output folder "output_dir"/tmp
-LoadMAIACFiles = function(raster_filename, output_dir, tmp_dir, type) {
-  # name and order vector of the subdatasets
-  science_dataset_names = c("sur_refl", "Sigma_BRFn", "Snow_Fraction", "Snow_Grain_Diameter", "Snow_Fit", "Status_QA", "sur_refl_500m", "cosSZA", "cosVZA", "RelAZ", "Scattering_Angle", "Glint_Angle", "SAZ", "VAZ", "Fv", "Fg")
-  science_dataset_parameter_names = c("Kiso", "Kvol", "Kgeo", "sur_albedo", "UpdateDay")
-  
-  # identify the type
-  type_number = sprintf("%02d", grep(paste0("^", type, "$"), science_dataset_names))
-  if (length(type_number)==0)
-    type_number = sprintf("%01d", grep(paste0("^", type, "$"), science_dataset_parameter_names))
-  if (length(type_number)==0) {
-    # message
-    stop(paste0(Sys.time(), ": Can't find file type to open: ",type))
-  }
-  
+LoadMAIACFiles = function(raster_filename, output_dir, tmp_dir, type, isMCD) {
   # list of bricks
   raster_brick = list()
   
-  # loop though files and load the files
-  for(i in 1:length(raster_filename)) {
-    raster_brick[[i]] = brick(paste0(tmp_dir,raster_filename[i],"_",type_number,".tif"))
+  # for the new MCD product
+  if (isMCD) {
+    # name and order vector of the subdatasets
+    science_dataset_names = c("sur_refl1","sur_refl2","sur_refl3","sur_refl4","sur_refl5","sur_refl6","sur_refl7","sur_refl8","sur_refl9","sur_refl10","sur_refl11","sur_refl12","Sigma_BRFn1","Sigma_BRFn2","Snow_Fraction","Snow_Grain_Size","Snow_Fit","Status_QA","Sur_refl_500m1","Sur_refl_500m2","Sur_refl_500m3","Sur_refl_500m4","Sur_refl_500m5","Sur_refl_500m6","Sur_refl_500m7","cosSZA","cosVZA","RelAZ","Scattering_Angle","SAZ","VAZ","Glint_Angle","Fv","Fg")
+    science_dataset_parameter_names = c("Kiso", "Kvol", "Kgeo", "sur_albedo", "UpdateDay")
+    
+    # identify the type
+    if (type == "sur_refl") {
+      type_number = sprintf("%02d", 1:8)
+    } else {
+      type_number = sprintf("%02d", grep(paste0("^", type, "$"), science_dataset_names))
+      if (length(type_number)==0)
+        type_number = sprintf("%01d", grep(paste0("^", type, "$"), science_dataset_parameter_names))
+      if (length(type_number)==0) {
+        # message
+        stop(paste0(Sys.time(), ": Can't find file type to open: ",type))
+      }
+    }
+    
+    # loop though files and load the files
+    i=1
+    for(i in 1:length(raster_filename)) {
+      # RTLS
+      if (any(type == c("Kiso", "Kvol", "Kgeo"))) {
+        for(i in 1:length(raster_filename)) {
+          raster_brick[[i]] = brick(paste0(tmp_dir,raster_filename[i],"_",type_number,".tif"))
+        }
+      } else { # BRF
+        if (type == "sur_refl") {
+          # open each band
+          j=1
+          band_list = list()
+          for (j in 1:8) {
+            band_list[[j]] = brick(paste0(tmp_dir,raster_filename[i],"_",type_number[j],".tif"))
+          }
+          # now we stack the bands according to the number of observations in this DOY
+          obs_list = list()
+          for (j in 1:nlayers(band_list[[1]])) {
+            obs_list[[j]] = stack(band_list[[1]][[j]], band_list[[2]][[j]], band_list[[3]][[j]], band_list[[4]][[j]], band_list[[5]][[j]], band_list[[6]][[j]], band_list[[7]][[j]], band_list[[8]][[j]])
+          }
+          for (j in 1:length(obs_list)) {
+            raster_brick[[length(raster_brick)+1]] = obs_list[[j]]
+          }
+        } else {
+          tmp = brick(paste0(tmp_dir,raster_filename[i],"_",type_number,".tif"))
+          for (j in 1:nlayers(tmp)) {
+            raster_brick[[length(raster_brick)+1]] = tmp[[j]]
+          }
+        }
+      }
+    }
+    
+  } else { # for the old MAIAC product
+    # name and order vector of the subdatasets
+    science_dataset_names = c("sur_refl", "Sigma_BRFn", "Snow_Fraction", "Snow_Grain_Diameter", "Snow_Fit", "Status_QA", "sur_refl_500m", "cosSZA", "cosVZA", "RelAZ", "Scattering_Angle", "Glint_Angle", "SAZ", "VAZ", "Fv", "Fg")
+    science_dataset_parameter_names = c("Kiso", "Kvol", "Kgeo", "sur_albedo", "UpdateDay")
+    
+    # identify the type
+    type_number = sprintf("%02d", grep(paste0("^", type, "$"), science_dataset_names))
+    if (length(type_number)==0)
+      type_number = sprintf("%01d", grep(paste0("^", type, "$"), science_dataset_parameter_names))
+    if (length(type_number)==0) {
+      # message
+      stop(paste0(Sys.time(), ": Can't find file type to open: ",type))
+    }
+    
+    # loop though files and load the files
+    for(i in 1:length(raster_filename)) {
+      raster_brick[[i]] = brick(paste0(tmp_dir,raster_filename[i],"_",type_number,".tif"))
+    }
+    
   }
   
   # return
@@ -534,7 +620,7 @@ FilterValOutRangeToNA = function(x, minArg, maxArg) {
 # to do: arquivo vira float depois da covnersao, transformar em outro formato? (ex. int2s)
 # transf para int2s parece que ferra os valores
 # band values are calculated ok, tested calculating one band separatedely and compared to the batch convert
-ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_cores, log_fname, view_geometry) {
+ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_cores, log_fname, view_geometry, isMCD) {
   # BRF = brf_reflectance  # (12 bandas por data, 1km)
   # FV = brf_fv  # (1 por data, 5km)
   # FG = brf_fg  # (1 por data, 5km)
@@ -548,10 +634,19 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   # measure time
   t1 = mytic()
   
+  # define RTLS day name location in the string
+  if (isMCD) {
+    rtls_day_str_begin = 14
+    rtls_day_str_end = 16
+  } else {
+    rtls_day_str_begin = 22
+    rtls_day_str_end = 24
+  }
+  
   # retrieve RTLS day
   rtls_day_vec = vector()
   for (i in 1:length(kL)) {
-    rtls_day_vec[i] = as.numeric(substr(names(kL[[i]])[[1]],22,24))
+    rtls_day_vec[i] = as.numeric(substr(names(kL[[i]])[[1]],rtls_day_str_begin,rtls_day_str_end))
   }
   
   # function to normalize
@@ -607,11 +702,15 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
       return(0)
     
     # identify which tile is the given i data and set the parameters to the tile
-    img_day = as.numeric(substr(names(FVi),22,24))
+    img_day = as.numeric(substr(names(FVi),rtls_day_str_begin,rtls_day_str_end))
     
     # get rtls days that are lower than image day, and that are near the image day until 8 days (the aggreagated rtls), get always the lowest rlts day (index 1)
-    idx = which(img_day <= rtls_day_vec & abs(rtls_day_vec - img_day) <= 8)[1]
-    
+    if (isMCD) {
+      idx = which(img_day >= rtls_day_vec & abs(rtls_day_vec - img_day) < 8)[1]
+    } else {
+      idx = which(img_day <= rtls_day_vec & abs(rtls_day_vec - img_day) <= 8)[1]
+    }
+
     # if there is no rtls available, get the closest one and log it
     if (is.na(idx)) {
       idx = which(min(abs(img_day - rtls_day_vec)) == abs(img_day - rtls_day_vec))
@@ -953,12 +1052,13 @@ CalcMedianBRF = function(raster_brick_per_band, no_cores, log_fname, output_dir,
   foreach(i = myit, .packages=c("raster","median2rcpp"), .export=objects_to_export, .errorhandling="remove") %dopar% {
     # message
     #print(paste0(Sys.time(), ": Calculating median per band ",i," from ",length(raster_brick_per_band)))
+    tmp = calc(i, fun=CalcMedianAndN)
     
     # calc median, if i == 1 save the number of pixels, otherwise just save the values
     if (names(i)[1]=="X1") {
-      writeRaster(round(calc(i, fun=CalcMedianAndN)*10000,0), filename=paste0(tmp_dir, "Band_",names(i)[1],".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
+      writeRaster(round(stack(tmp[[1]]*10000, tmp[[2]]),0), filename=paste0(tmp_dir, "Band_",names(i)[1],".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
     } else
-      writeRaster(round(calc(i, fun=CalcMedianAndN)[[1]]*10000,0), filename=paste0(tmp_dir, "Band_",names(i)[1],".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
+      writeRaster(round(tmp[[1]]*10000,0), filename=paste0(tmp_dir, "Band_",names(i)[1],".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
     
     # return 0 to the foreach
     c(0)
@@ -1199,3 +1299,18 @@ YearDoy2Date = function(x, y) {
     return(as.Date(y, origin = paste0(x-1,"-12-31")))
   }
 }
+
+# function to check whether the product for the given composite and tile is from old MAIAC or MCD19A1
+IsMCD = function(input_dir, day, year, tile) {
+  tmp = list.files(input_dir, pattern = tile, full.names=T)
+  tmp = grep(paste(paste0(year, day), collapse="|"), tmp, value=T)
+  if (length(grep("MCD19A",tmp, value=T)) > 0) {
+    response = TRUE
+  } else {
+    response = FALSE
+  }
+  return(response)
+}
+
+
+
