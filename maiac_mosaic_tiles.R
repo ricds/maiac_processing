@@ -117,7 +117,6 @@ f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster","gdalUtils","rgdal")
                    te = c(extent(crop_ext)[1],extent(crop_ext)[3],extent(crop_ext)[2],extent(crop_ext)[4]),
                    wo = "INIT_DEST = NO_DATA",
                    co = c("COMPRESS=LZW","PREDICTOR=2"),
-                   te = c(-113.9209, -61.15665, -2.073097, 14.38913),
                    r = "near")
         }
         
