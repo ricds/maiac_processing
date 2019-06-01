@@ -175,7 +175,7 @@ GetFilenameVec = function(type, input_dir, downloaded_files_dir, tile, year, day
   # loop to find rtls and increase offset on each iteration
   while(length(result)==0 & continue_processing) {
     # create combinatios of product, tile, year and day
-    if (type == "MCD19A1" | type == "MCD19A3") {
+    if (any(type == "MCD19A1") | any(type == "MCD19A3")) {
       combinations = expand.grid(type, paste0(".A", year, sprintf("%03s",day2),"."), tile)
     } else {
       combinations = expand.grid(type, paste0(".",tile,"."), year, sprintf("%03s",day2))
