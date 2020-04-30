@@ -203,7 +203,7 @@ GetFilenameVec = function(type, input_dir, downloaded_files_dir, tile, year, day
       continue_processing=FALSE
     } else {
       # if no results and its rtls try to increase offset
-      if (type == "MAIACRTLS" | type == "MCD19A3") {
+      if (type[1] == "MAIACRTLS" | type[1] == "MCD19A3") {
         # test if the composite rtls is available and remove the rest
         if (offset_days>0 & any(offset_days == c(8,16,24))) {
           # raise offset in 8
@@ -324,7 +324,7 @@ RemoveDirectoryFromFilenameVec = function(product_string) {
 }
 
 # function to convert BRF and RTLS files from .HDF to .TIF from an input directory "input_dir" to a temporary output directory "output_dir"/tmp
-ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname, is_ea_filter, is_qa_filter, downloaded_files_dir, download_enabled, process_dir, isMCD) {
+ConvertHDF2TIF = function(product_fname, parameter_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname, is_ea_filter, is_qa_filter, downloaded_files_dir, download_enabled, process_dir, isMCD) {
   # message
   print(paste0(Sys.time(), ": Converting HDFs to TIF in parallel..."))
   
@@ -363,10 +363,10 @@ ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, n
   }
   
   # create sds_to_retrieve list
-  sds_to_retrieve_mat = rbind.fill.matrix(matrix(sds_to_retrieve_brf,length(x),length(sds_to_retrieve_brf), byrow=T),matrix(sds_to_retrieve_rtls,length(y),length(sds_to_retrieve_rtls), byrow=T))
+  sds_to_retrieve_mat = rbind.fill.matrix(matrix(sds_to_retrieve_brf,length(product_fname),length(sds_to_retrieve_brf), byrow=T),matrix(sds_to_retrieve_rtls,length(parameter_fname),length(sds_to_retrieve_rtls), byrow=T))
 
   # merge x and y
-  x = c(x,y)
+  x = c(product_fname,parameter_fname)
   
   # Initiate cluster
   cl = parallel::makeCluster(min(length(x), no_cores))
@@ -375,6 +375,7 @@ ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, n
   
   # loop through the files
   foreach(i = 1:length(x), .packages=c("raster","gdalUtils","rgdal","RCurl"), .export=objects_to_export, .errorhandling="remove") %dopar% {
+  #for(i in 1:length(x)) {
     # adjust output filename in case the product name has folder in the beggining
     x1 = basename(x[i])
     
@@ -405,7 +406,7 @@ ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, n
       # check if file exists after converting
       # if it doesn't, it can mean two things: (1) converting was somehow interrupted -> convert again, or (2) HDF is corrupted -> download again
       try_count = 0
-      while (any(!file.exists(paste0(tmp_dir,x1,"_",na.omit(sds_to_retrieve_mat[i,]),".tif"))) & try_count < 3) {
+      while (any(!file.exists(paste0(tmp_dir,x1,"_",na.omit(sds_to_retrieve_mat[i,]),".tif"))) & try_count < 1) {
         
         # option 1, problem in conversion
         # solution: try to convert it again, and test for all files, test this 2 times
@@ -425,37 +426,37 @@ ConvertHDF2TIF = function(x, y, input_dir, output_dir, tmp_dir, maiac_ftp_url, n
           next
         }
         
-        # after two tries converting again, the problem might be a corrupted HDF
-        # option 2, corrupted HDF
-        # solution: download again, test download for 5 times, NASA website sometimes doesn't respond
-        try_count_download = 0
-        while (any(!file.exists(paste0(tmp_dir,x1,"_",na.omit(sds_to_retrieve_mat[i,]),".tif"))) & try_count_download < 5 & download_enabled) {
-          # message
-          print(paste0(Sys.time(), ": Error while converting file ",i," from ",length(x)," -> ",x1))
-          
-          # download the missing file and place the file in the input folder
-          #DownloadMissingFile(x1, paste0(input_dir, dirname(x[i]),"/"), maiac_ftp_url, output_dir)
-          
-          # download the missing file and place the file in a download directory
-          DownloadMissingFile(x1, downloaded_files_dir, maiac_ftp_url, output_dir)
-          
-          # change the sds list
-          if (sds_to_retrieve_mat[i,1] == "01") {
-            sds_list = paste0(sds_preffix,paste0(downloaded_files_dir,x1),sds_suffix_brf)  # fast!
-          } else
-            sds_list = paste0(sds_preffix,paste0(downloaded_files_dir,x1),sds_suffix_rtls)  # fast!
-          
-          # try to convert again
-          for (j in 1:length(na.omit(sds_to_retrieve_mat[i,]))) { #sprintf("%02d",sds_to_retrieve_mat[i,][j])
-            if (any(as.numeric(sds_to_retrieve_mat[i,][j]) == c(15,16,33,34))) {
-              gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]), a_nodata=-99999)
-            } else
-              gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]))
-          }
-          
-          # count
-          try_count_download = try_count_download + 1 
-        }
+        # # after two tries converting again, the problem might be a corrupted HDF
+        # # option 2, corrupted HDF
+        # # solution: download again, test download for 5 times, NASA website sometimes doesn't respond
+        # try_count_download = 0
+        # while (any(!file.exists(paste0(tmp_dir,x1,"_",na.omit(sds_to_retrieve_mat[i,]),".tif"))) & try_count_download < 5 & download_enabled) {
+        #   # message
+        #   print(paste0(Sys.time(), ": Error while converting file ",i," from ",length(x)," -> ",x1))
+        #   
+        #   # download the missing file and place the file in the input folder
+        #   #DownloadMissingFile(x1, paste0(input_dir, dirname(x[i]),"/"), maiac_ftp_url, output_dir)
+        #   
+        #   # download the missing file and place the file in a download directory
+        #   DownloadMissingFile(x1, downloaded_files_dir, maiac_ftp_url, output_dir)
+        #   
+        #   # change the sds list
+        #   if (sds_to_retrieve_mat[i,1] == "01") {
+        #     sds_list = paste0(sds_preffix,paste0(downloaded_files_dir,x1),sds_suffix_brf)  # fast!
+        #   } else
+        #     sds_list = paste0(sds_preffix,paste0(downloaded_files_dir,x1),sds_suffix_rtls)  # fast!
+        #   
+        #   # try to convert again
+        #   for (j in 1:length(na.omit(sds_to_retrieve_mat[i,]))) { #sprintf("%02d",sds_to_retrieve_mat[i,][j])
+        #     if (any(as.numeric(sds_to_retrieve_mat[i,][j]) == c(15,16,33,34))) {
+        #       gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]), a_nodata=-99999)
+        #     } else
+        #       gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]))
+        #   }
+        #   
+        #   # count
+        #   try_count_download = try_count_download + 1 
+        # }
         
         # check if the file was extracted
         if (all(file.exists(paste0(tmp_dir,x1,"_",na.omit(sds_to_retrieve_mat[i,]),".tif")))) {
