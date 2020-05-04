@@ -49,6 +49,7 @@ ff_ndvi = cmpfun(f_ndvi)
 #registerDoParallel(cl)
 
 # process
+i=1
 for (i in 1:dim(composite_vec)[1]) {
 #f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster"), .errorhandling="remove") %dopar% { # for parallel
   # check if files exist for given composite

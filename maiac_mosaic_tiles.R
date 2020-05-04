@@ -159,5 +159,5 @@ stopCluster(cl)
 print("Processing finished.")
 
 # check file size
-sum(file.info(list.files(mosaic_output_dir, pattern="latlon", full.names = TRUE))$size)/(1024*1024*1024)
-sum(file.info(list.files(mosaic_output_dir, pattern="crop", full.names = TRUE))$size)/(1024*1024*1024)
+#sum(file.info(list.files(mosaic_output_dir, pattern="latlon", full.names = TRUE))$size)/(1024*1024*1024)
+#sum(file.info(list.files(mosaic_output_dir, pattern="crop", full.names = TRUE))$size)/(1024*1024*1024)
