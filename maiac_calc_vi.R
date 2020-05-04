@@ -87,6 +87,9 @@ for (i in 1:dim(composite_vec)[1]) {
     }
   }
   
+  # progress monitor
+  print(paste(i,dim(composite_vec)[1]))
+  
   # clear
   gc()
   removeTmpFiles(h=0)
