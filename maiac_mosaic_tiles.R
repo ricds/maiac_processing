@@ -84,16 +84,16 @@ f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster","gdalUtils","rgdal")
                        co = c("COMPRESS=LZW","PREDICTOR=2"))
       }
       
-      # set source crs
-      source_srs = "+proj=sinu +lon_0=-58 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
-      # if it is from the MCD (new product) - we have to adjust this - we check it by the original resolution equal to 926.6254
-      if (res(stack(paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],".tif")))[1] != 1000) {
-        source_srs = "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
-      }
-      
       # proceed only if latlon and crop file doesn't exist
       if (all(!file.exists(c(paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon.tif"),paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon_crop.tif"),paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon_crop_mask.tif"))))) {
-        
+
+        # set source crs
+        source_srs = "+proj=sinu +lon_0=-58 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
+        # if it is from the MCD (new product) - we have to adjust this - we check it by the original resolution equal to 926.6254
+        if (res(stack(paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],".tif")))[1] != 1000) {
+          source_srs = "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
+        }
+                
         if (!is_crop_enable) {
           # reproject from sinusoidal to latlon
           gdalwarp(srcfile = paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],".tif"),
