@@ -86,6 +86,7 @@ f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster","gdalUtils","rgdal")
       
       # set source crs
       source_srs = "+proj=sinu +lon_0=-58 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
+      # if it is from the MCD (new product) - we have to adjust this - we check it by the original resolution equal to 926.6254
       if (res(stack(paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],".tif")))[1] != 1000) {
         source_srs = "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
       }
@@ -126,27 +127,7 @@ f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster","gdalUtils","rgdal")
       
       # proceed only if mask file doesn't exist and is enabled
       if (is_mask_enable && all(!file.exists(c(paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon_crop.tif"),paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon_crop_mask.tif"))))) {
-        
-        # # crop the file by polygon/raster
-        # if (!is.na(crop_polygon)) {
-        #   crop(x = mask(x=raster(paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon.tif")), mask=CROP_RASTER),
-        #        y = CROP_POLYGON,
-        #        filename = paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon_crop.tif"),
-        #        overwrite = TRUE,
-        #        format="GTiff",
-        #        datatype = "INT2S",
-        #        options = c("COMPRESS=LZW","PREDICTOR=2")
-        #   )
-        # } else {
-        #   # crop the file by extent
-        #   crop(x = raster(paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon.tif")),
-        #        y = crop_ext,
-        #        filename = paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon_crop.tif"),
-        #        overwrite = TRUE,
-        #        format="GTiff",
-        #        datatype = "INT2S",
-        #        options = c("COMPRESS=LZW","PREDICTOR=2"))
-        # }
+
         # define file name
         if (!is_crop_enable) {
           fname = paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon")
@@ -178,4 +159,4 @@ stopCluster(cl)
 print("Processing finished.")
 
 # check file size
-sum(file.info(list.files(mosaic_input_dir, pattern="crop", full.names = TRUE))$size)/(1024*1024*1024)  # 37.29926
+sum(file.info(list.files(mosaic_input_dir, pattern="crop", full.names = TRUE))$size)/(1024*1024*1024)
