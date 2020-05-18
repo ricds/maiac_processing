@@ -62,6 +62,9 @@ manual_run = FALSE
 
 # MOSAIC CONFIG ------------------------------------------------------------------
 
+# bands to mosaic
+band_names = c("band1","band2","band3","band4","band5","band6","band7","band8","no_samples")
+
 # maiac input folder
 mosaic_input_dir = "/mnt/DATADRIVE2/ricardo_data/_MAIAC/MAIAC_ProcessedTiles/"
 
