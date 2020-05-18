@@ -167,17 +167,14 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
     parameters = "MAIACRTLS"
   }
   
-  # create nan rasters for tile in case it is needed
-  nan_tile = CreateNanTiles(tile, nan_tiles_dir, latlon_tiles_dir, isMCD)
-  
   # check if composite processed file already exist, otherwise just skip to next iteration; manual_run overrides this and overwrite files
   if (IsTileCompositeProcessed(composite_fname, tile, year, day, output_dir, overwrite_files))
     return(0)
   
   # if no brf or rtls is available for given day, year, tile, (1) try to download it (in case of rtls), or (2) return nan output, log the information and go to next iteration
-  if (!IsDataAvailable(product, tile, year, day, nan_tiles_dir, output_dir, obs="brf", maiac_ftp_url, composite_fname, downloaded_files_dir, composite_no) | !IsDataAvailable(parameters, tile, year, day, nan_tiles_dir, output_dir, obs="rtls", maiac_ftp_url, composite_fname, downloaded_files_dir, composite_no))
+  if (!IsDataAvailable(product, tile, year, day, nan_tiles_dir, output_dir, obs="brf", maiac_ftp_url, composite_fname, downloaded_files_dir, composite_no, isMCD) | !IsDataAvailable(parameters, tile, year, day, nan_tiles_dir, output_dir, obs="rtls", maiac_ftp_url, composite_fname, downloaded_files_dir, composite_no, isMCD))
     return(0)
-  
+
   # set temporary directory
   tmp_dir = paste0(tempdir(), "\\tmp_",tile,"_",year,day[length(day)],"/")
   
@@ -209,6 +206,7 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   
   # test if nadir_brf_reflectance is empty, and return nan tile if it is true
   if (length(nadir_brf_reflectance) == 0) {
+    nan_tile = GetNanTile(tile, nan_tiles_dir, isMCD)
     SaveProcessedTileComposite(nan_tile, output_dir, composite_fname, tile, year, day, composite_no)
     return(0)
   }
