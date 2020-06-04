@@ -102,5 +102,5 @@ for (i in 1:dim(composite_vec)[1]) {
 print("Processing finished.")
 
 # check file size
-sum(file.info(list.files(mosaic_output_dir, pattern="ndvi", full.names = TRUE))$size)/(1024*1024*1024)
-sum(file.info(list.files(mosaic_output_dir, pattern="evi", full.names = TRUE))$size)/(1024*1024*1024)
+#sum(file.info(list.files(mosaic_output_dir, pattern="ndvi", full.names = TRUE))$size)/(1024*1024*1024)
+#sum(file.info(list.files(mosaic_output_dir, pattern="evi", full.names = TRUE))$size)/(1024*1024*1024)

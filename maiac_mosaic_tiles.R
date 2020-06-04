@@ -69,7 +69,8 @@ f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster","gdalUtils","rgdal")
   if (length(file_list)!=0) {
     
     # process each band
-    for (j in 1:9) {
+    j=1
+    for (j in 1:length(band_names)) {
       # proceed only if mosaic, latlon and crop file doesn't exist
       if (all(!file.exists(c(paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],".tif"),paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon.tif"),paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon_crop.tif"))))) {
         # mosaic
