@@ -118,7 +118,7 @@ parameters = c("MAIACRTLS","MCD19A3")
 maiac_ftp_url = "ftp://maiac@dataportal.nccs.nasa.gov/DataRelease/SouthAmerica/"
 
 # define the output base filename
-composite_fname = CreateCompositeName(composite_no, product, is_qa_filter, is_ea_filter, view_geometry)
+composite_fname = CreateCompositeName(composite_no, product, is_qa_filter, is_ea_filter, view_geometry, product_res = product_res)
 
 # create matrix of days on each composite
 day_mat = CreateDayMatrix(composite_no)
@@ -172,7 +172,7 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
     return(0)
   
   # if no brf or rtls is available for given day, year, tile, (1) try to download it (in case of rtls), or (2) return nan output, log the information and go to next iteration
-  if (!IsDataAvailable(product, tile, year, day, nan_tiles_dir, output_dir, obs="brf", maiac_ftp_url, composite_fname, downloaded_files_dir, composite_no, isMCD) | !IsDataAvailable(parameters, tile, year, day, nan_tiles_dir, output_dir, obs="rtls", maiac_ftp_url, composite_fname, downloaded_files_dir, composite_no, isMCD))
+  if (!IsDataAvailable(product, tile, year, day, nan_tiles_dir, output_dir, obs="brf", maiac_ftp_url, composite_fname, downloaded_files_dir, composite_no, isMCD, product_res) | !IsDataAvailable(parameters, tile, year, day, nan_tiles_dir, output_dir, obs="rtls", maiac_ftp_url, composite_fname, downloaded_files_dir, composite_no, isMCD, product_res))
     return(0)
 
   # set temporary directory
@@ -186,14 +186,14 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   parameter_fname = GetFilenameVec(parameters, input_dir, downloaded_files_dir, tile, year, day, offset_days=24)
 
   # 2) (parallel computing) convert files from hdf to geotif using gdal_translate
-  ConvertHDF2TIF(product_fname, parameter_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname, is_ea_filter, is_qa_filter, downloaded_files_dir, download_enabled, process_dir, isMCD)
+  ConvertHDF2TIF(product_fname, parameter_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname, is_ea_filter, is_qa_filter, downloaded_files_dir, download_enabled, process_dir, isMCD, product_res)
   
   # remove directory from filenames, return only the "filenames".hdf
   product_fname = basename(product_fname)
   parameter_fname = basename(parameter_fname)
   
   # 3) load .tif files needed for BRF normalization
-  brf_reflectance = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "sur_refl", isMCD)
+  brf_reflectance = LoadMAIACFiles(product_fname, output_dir, tmp_dir, product_res, isMCD)
   brf_fv = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "Fv", isMCD)
   brf_fg = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "Fg", isMCD)
   rtls_kiso = LoadMAIACFiles(parameter_fname, output_dir, tmp_dir, "Kiso", isMCD)
@@ -201,12 +201,12 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   rtls_kgeo = LoadMAIACFiles(parameter_fname, output_dir, tmp_dir, "Kgeo", isMCD)
   
   # 4) (parallel computing) apply brf normalization to nadir for each date using the respective RTLS parameters or nearest RTLS file, and the eq. from MAIAC documentation: (BRFn = BRF * (kL - 0.04578*kV - 1.10003*kG)/( kL + FV*kV + FG*kG))
-  nadir_brf_reflectance = ConvertBRFNadir(brf_reflectance, brf_fv, brf_fg, rtls_kiso, rtls_kvol, rtls_kgeo, tile, year, output_dir, no_cores, log_fname, view_geometry, isMCD)
+  nadir_brf_reflectance = ConvertBRFNadir(brf_reflectance, brf_fv, brf_fg, rtls_kiso, rtls_kvol, rtls_kgeo, tile, year, output_dir, no_cores, log_fname, view_geometry, isMCD, product_res)
   rm(list = c("brf_reflectance", "brf_fv", "brf_fg", "rtls_kiso", "rtls_kvol", "rtls_kgeo"))
   
   # test if nadir_brf_reflectance is empty, and return nan tile if it is true
   if (length(nadir_brf_reflectance) == 0) {
-    nan_tile = GetNanTile(tile, nan_tiles_dir, isMCD)
+    nan_tile = GetNanTile(tile, nan_tiles_dir, isMCD, product_res)
     SaveProcessedTileComposite(nan_tile, output_dir, composite_fname, tile, year, day, composite_no)
     return(0)
   }
@@ -242,11 +242,11 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   }
   png(filename=paste0(tile_preview_dir,"fig_",composite_fname,"_",tile,"_",year,composite_num,".png"), type="cairo", units="cm", width=15, height=15, pointsize=10, res=300)
   par(oma=c(4,4,4,4))
-  plot(stack(median_brf_reflectance[[1:8]]/10000, median_brf_reflectance[[9]]))
+  plot(stack(median_brf_reflectance[[1:(nlayers(median_brf_reflectance)-1)]]/10000, median_brf_reflectance[[nlayers(median_brf_reflectance)]]))
   dev.off()
   
   # 9) save the processed composite
-  SaveProcessedTileComposite(median_brf_reflectance, output_dir, composite_fname, tile, year, day, composite_no)
+  SaveProcessedTileComposite(median_brf_reflectance, output_dir, composite_fname, tile, year, day, composite_no, product_res)
   rm(list = c("median_brf_reflectance"))
   
   # delete temporary directory
@@ -265,9 +265,9 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   return(0)
 }
 
+# message
+print(paste0(Sys.time(), ": Processing is now stopped. Either finished or some problem happened. Good luck!"))
+
 # make sure to stop cluster
 stopCluster(cl)
 closeAllConnections()
-
-# message
-print(paste0(Sys.time(), ": Processing is now stopped. Either finished or some problem happened. Good luck!"))

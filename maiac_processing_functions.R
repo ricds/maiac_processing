@@ -72,7 +72,7 @@ isTileProcessed = function(tile, input_dir, output_dir, tmp_dir) {
 }
 
 # function to check if RTLS tile is available, if it does return TRUE, if it doesn't exist, create a "processed tile" with nan values
-IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs, maiac_ftp_url, composite_fname, downloaded_files_dir, composite_no, isMCD) {
+IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs, maiac_ftp_url, composite_fname, downloaded_files_dir, composite_no, isMCD, product_res) {
   # set escape variable default
   result = TRUE
   
@@ -86,7 +86,7 @@ IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs
   # if nan tile does not exist, lets create one
   if (!file.exists(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,".tif"))) {
     CreateNanTileFromFile(input_name = GetFilenameVec(type, input_dir, downloaded_files_dir, tile, year, day, offset_days = 24)[1],
-                          tile, nan_tiles_dir, isMCD)
+                          tile, nan_tiles_dir, isMCD, product_res)
   }
   
   # if its brf
@@ -97,11 +97,12 @@ IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs
     write(line, file=paste0(output_dir,"missing_files.txt"), append=TRUE)
     
     # load a brick of 9 nan bands (equivalent to band1-8 and number of pixels)
-    b = brick(lapply(c(1:9), FUN=function(x) raster(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,".tif"))))
+    #b = brick(lapply(c(1:9), FUN=function(x) raster(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,ifelse(product_res != 1000,paste0("_",product_res)),".tif"))))
+    b = GetNanTile(tile, nan_tiles_dir, isMCD, product_res)
     
     # save the nan tile as the processed tile
     #writeRaster(b, filename=paste0(output_dir, composite_fname, ".", tile, ".", year, day[length(day)], ".tif"), format="GTiff", datatype='INT2S', overwrite=TRUE)
-    SaveProcessedTileComposite(b, output_dir, composite_fname, tile, year, day, composite_no)
+    SaveProcessedTileComposite(b, output_dir, composite_fname, tile, year, day, composite_no, product_res)
     
     # message
     print(paste0(Sys.time(), ": Couldn't find ", obs ," tile ", tile, ", year ", year, ", and day ", day[length(day)],". Going to next iteration..."))
@@ -119,11 +120,12 @@ IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs
     write(line, file=paste0(output_dir,"missing_files.txt"), append=TRUE)
     
     # load a brick of 9 nan bands (equivalent to band1-8 and number of pixels)
-    b = brick(lapply(c(1:9), FUN=function(x) raster(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,".tif"))))
+    #b = brick(lapply(c(1:9), FUN=function(x) raster(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,ifelse(product_res != 1000,paste0("_",product_res)),".tif"))))
+    b = GetNanTile(tile, nan_tiles_dir, isMCD, product_res)
     
     # save the nan tile as the processed tile
     #writeRaster(b, filename=paste0(output_dir, composite_fname, ".", tile, ".", year, day[length(day)], ".tif"), format="GTiff", datatype='INT2S', overwrite=TRUE)
-    SaveProcessedTileComposite(b, output_dir, composite_fname, tile, year, day, composite_no)
+    SaveProcessedTileComposite(b, output_dir, composite_fname, tile, year, day, composite_no, product_res)
     
     # message
     print(paste0(Sys.time(), ": Couldn't find ", obs ," tile ", tile, ", year ", year, ", and day ", day[length(day)],". Going to next iteration..."))
@@ -137,43 +139,47 @@ IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs
 }
 
 # function to create nan tiles from a hdf file, to use in case the time series dont have data for one tile on a given date
-GetNanTile = function(tile, nan_tiles_dir, isMCD) {
-  return(brick(lapply(c(1:9), FUN=function(x) raster(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,".tif")))))
+GetNanTile = function(tile, nan_tiles_dir, isMCD, product_res) {
+  nan_tile = raster(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,ifelse(product_res != 1000,paste0("_",product_res)),".tif"))
+  names(nan_tile) = "nantile"
+  return(nan_tile)
 }
 
 # function to create nan tiles from a hdf file, to use in case the time series dont have data for one tile on a given date
-CreateNanTileFromFile = function(input_name, tile, nan_tiles_dir, isMCD) {
+CreateNanTileFromFile = function(input_name, tile, nan_tiles_dir, isMCD, product_res) {
   # check if nan tile already exists
-  if (!file.exists(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""), "nantile",".",tile,".tif"))) {
+  if (!file.exists(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""), "nantile",".",tile,ifelse(product_res != 1000,paste0("_",product_res)),".tif"))) {
     # create tmpnanfiles directory
     dir.create(file.path(nan_tiles_dir, "tmpnanfiles/"), showWarnings = FALSE)
 
     # convert
+    # get_subdatasets(input_name)
+    # old maiac 500 = 7, MCD is 19-25
     gdal_translate(src_dataset = input_name,
-                   dst_dataset = paste0(nan_tiles_dir,"tmpnanfiles/",ifelse(isMCD,"MCD19A1_",""),tile,".tif"),
+                   dst_dataset = paste0(nan_tiles_dir,"tmpnanfiles/",ifelse(isMCD,"MCD19A1_",""),tile,ifelse(product_res != 1000,paste0("_",product_res)),".tif"),
                    verbose=F, #sds=TRUE,
-                   sd_index = 1)
+                   sd_index = ifelse(product_res == 1000, 1, ifelse(!isMCD, 7, 19)))
     
     # open and assign nan
-    r = raster(paste0(nan_tiles_dir,"tmpnanfiles/",ifelse(isMCD,"MCD19A1_",""),tile,".tif"))
+    r = raster(paste0(nan_tiles_dir,"tmpnanfiles/",ifelse(isMCD,"MCD19A1_",""),tile,ifelse(product_res != 1000,paste0("_",product_res)),".tif"))
     r[]=NaN
     
     # save
-    writeRaster(r, filename=paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,".tif"), format="GTiff", datatype='INT2S', overwrite=TRUE)
+    writeRaster(r, filename=paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,ifelse(product_res != 1000,paste0("_",product_res)),".tif"), format="GTiff", datatype='INT2S', overwrite=TRUE)
     
     # delete tmpnanfiles directory
     unlink(file.path(nan_tiles_dir, "tmpnanfiles/"), recursive=TRUE)
   } else {
-      r = raster(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,".tif"))
+      r = raster(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,ifelse(product_res != 1000,paste0("_",product_res)),".tif"))
   }
   return(r)
 }
 
 # function to create nan tiles, to use in case the time series dont have data for one tile on a given date
-# NOTE: this function is for the old MAIAC files pre-MCD19A1
+# NOTE: this function is for the old MAIAC files pre-MCD19A1 - NOT USED ANYMORE
 CreateNanTiles = function(tile, nan_tiles_dir, latlon_tiles_dir, isMCD) {
   # check if nan tile already exists
-  if (!file.exists(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile",".",tile,".tif"))) {
+  if (!file.exists(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile",".",tile,ifelse(product_res != 1000,paste0("_",product_res)),".tif"))) {
     # create tmpnanfiles directory
     dir.create(file.path(nan_tiles_dir, "tmpnanfiles/"), showWarnings = FALSE)
     
@@ -358,7 +364,7 @@ RemoveDirectoryFromFilenameVec = function(product_string) {
 }
 
 # function to convert BRF and RTLS files from .HDF to .TIF from an input directory "input_dir" to a temporary output directory "output_dir"/tmp
-ConvertHDF2TIF = function(product_fname, parameter_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname, is_ea_filter, is_qa_filter, downloaded_files_dir, download_enabled, process_dir, isMCD) {
+ConvertHDF2TIF = function(product_fname, parameter_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname, is_ea_filter, is_qa_filter, downloaded_files_dir, download_enabled, process_dir, isMCD, product_res) {
   # message
   print(paste0(Sys.time(), ": Converting HDFs to TIF in parallel..."))
   
@@ -366,8 +372,15 @@ ConvertHDF2TIF = function(product_fname, parameter_fname, input_dir, output_dir,
   t1 = mytic()
   
   # define which sds according to maiac product
+  # to find the indices: get_subdatasets(product_fname[1])
+  # get_subdatasets("E:\\Maiac_raw_data_2019\\MCD19A1.A2019001.h11v10.006.2019009051517.hdf")
   if (isMCD) {
-    sds_to_retrieve_brf_num = c(1:8,33,34)
+    if (product_res == 1000) {
+      brf_num = 1:8
+    } else {
+      brf_num = 19:25
+    }
+    sds_to_retrieve_brf_num = c(brf_num,33,34)
     sds_to_retrieve_brf = sprintf("%02d",sds_to_retrieve_brf_num)
     # NOTE: have to find these indices if we would like to filter the data
     # if (is_ea_filter)
@@ -377,13 +390,13 @@ ConvertHDF2TIF = function(product_fname, parameter_fname, input_dir, output_dir,
     sds_to_retrieve_rtls = c("1","2","3")
     
     # create sds_suffix and prefix
-    # TO DO
     sds_preffix = "HDF4_EOS:EOS_GRID:"
     sds_suffix_brf = c(":grid1km:Sur_refl1",":grid1km:Sur_refl2",":grid1km:Sur_refl3",":grid1km:Sur_refl4",":grid1km:Sur_refl5",":grid1km:Sur_refl6",":grid1km:Sur_refl7",":grid1km:Sur_refl8",":grid1km:Sur_refl9",":grid1km:Sur_refl10",":grid1km:Sur_refl11",":grid1km:Sur_refl12",":grid1km:Sigma_BRFn1",":grid1km:Sigma_BRFn2",":grid1km:Snow_Fraction",":grid1km:Snow_Grain_Size",":grid1km:Snow_Fit",":grid1km:Status_QA",":grid500m:Sur_refl_500m1",":grid500m:Sur_refl_500m2",":grid500m:Sur_refl_500m3",":grid500m:Sur_refl_500m4",":grid500m:Sur_refl_500m5",":grid500m:Sur_refl_500m6",":grid500m:Sur_refl_500m7",":grid5km:cosSZA",":grid5km:cosVZA",":grid5km:RelAZ",":grid5km:Scattering_Angle",":grid5km:SAZ",":grid5km:VAZ",":grid5km:Glint_Angle",":grid5km:Fv",":grid5km:Fg")
     sds_suffix_rtls = c(":grid1km:Kiso",":grid1km:Kvol",":grid1km:Kgeo",":grid1km:sur_albedo",":UpdateDay")
   } else {
     # SDS numbers
-    sds_to_retrieve_brf = c("01","15","16")
+    brf_num = ifelse(product_res == 1000, "01", "07")
+    sds_to_retrieve_brf = c(brf_num,"15","16")
     if (is_ea_filter)
       sds_to_retrieve_brf = c(sds_to_retrieve_brf,"13")
     if (is_qa_filter)
@@ -423,7 +436,8 @@ ConvertHDF2TIF = function(product_fname, parameter_fname, input_dir, output_dir,
       # get the sds list
       #sds_list = get_subdatasets(paste0(x[i]))  # slooooow
       #sds_list = paste0(sds_preffix,paste0(input_dir,x[i]),sds_suffix)  # fast!
-      if (sds_to_retrieve_mat[i,1] == "01") {
+      # different than "1" means it is not the RTLS parameters
+      if (sds_to_retrieve_mat[i,1] != "1") { 
         sds_list = paste0(sds_preffix,x[i],sds_suffix_brf)  # fast!
       } else {
         sds_list = paste0(sds_preffix,x[i],sds_suffix_rtls)  # fast!
@@ -529,6 +543,21 @@ LoadMAIACFiles = function(raster_filename, output_dir, tmp_dir, type, isMCD) {
   # list of bricks
   raster_brick = list()
   
+  # adjust the 'type' variable for the brf according to resolution and product
+  if (is.numeric(type)) {
+    product_res = type
+    
+    if (product_res == 1000) {
+      type = "sur_refl"
+    } else {
+      if (isMCD) {
+        type = "Sur_refl_500m"
+      } else {
+        type = "sur_refl_500m"
+      }
+    }
+  }
+  
   # for the new MCD product
   if (isMCD) {
     # name and order vector of the subdatasets
@@ -539,12 +568,16 @@ LoadMAIACFiles = function(raster_filename, output_dir, tmp_dir, type, isMCD) {
     if (type == "sur_refl") {
       type_number = sprintf("%02d", 1:8)
     } else {
-      type_number = sprintf("%02d", grep(paste0("^", type, "$"), science_dataset_names))
-      if (length(type_number)==0)
-        type_number = sprintf("%01d", grep(paste0("^", type, "$"), science_dataset_parameter_names))
-      if (length(type_number)==0) {
-        # message
-        stop(paste0(Sys.time(), ": Can't find file type to open: ",type))
+      if (type == "Sur_refl_500m") {
+        type_number = sprintf("%02d", 19:25)
+      } else {
+        type_number = sprintf("%02d", grep(paste0("^", type, "$"), science_dataset_names))
+        if (length(type_number)==0)
+          type_number = sprintf("%01d", grep(paste0("^", type, "$"), science_dataset_parameter_names))
+        if (length(type_number)==0) {
+          # message
+          stop(paste0(Sys.time(), ": Can't find file type to open: ",type))
+        }
       }
     }
     
@@ -553,25 +586,29 @@ LoadMAIACFiles = function(raster_filename, output_dir, tmp_dir, type, isMCD) {
     for(i in 1:length(raster_filename)) {
       # RTLS
       if (any(type == c("Kiso", "Kvol", "Kgeo"))) {
-        for(i in 1:length(raster_filename)) {
-          raster_brick[[i]] = brick(paste0(tmp_dir,raster_filename[i],"_",type_number,".tif"))
-        }
+        raster_brick[[i]] = brick(paste0(tmp_dir,raster_filename[i],"_",type_number,".tif"))
       } else { # BRF
-        if (type == "sur_refl") {
+        if (type == "sur_refl" | type == "Sur_refl_500m") {
           # open each band
           j=1
           band_list = list()
-          for (j in 1:8) {
+          n_bands = ifelse(type == "sur_refl", 8, 7)
+          for (j in 1:n_bands) {
             band_list[[j]] = brick(paste0(tmp_dir,raster_filename[i],"_",type_number[j],".tif"))
           }
           # now we stack the bands according to the number of observations in this DOY
           obs_list = list()
           for (j in 1:nlayers(band_list[[1]])) {
-            obs_list[[j]] = stack(band_list[[1]][[j]], band_list[[2]][[j]], band_list[[3]][[j]], band_list[[4]][[j]], band_list[[5]][[j]], band_list[[6]][[j]], band_list[[7]][[j]], band_list[[8]][[j]])
+            if (n_bands == 8) {
+              obs_list[[j]] = stack(band_list[[1]][[j]], band_list[[2]][[j]], band_list[[3]][[j]], band_list[[4]][[j]], band_list[[5]][[j]], band_list[[6]][[j]], band_list[[7]][[j]], band_list[[8]][[j]])
+            } else {
+              obs_list[[j]] = stack(band_list[[1]][[j]], band_list[[2]][[j]], band_list[[3]][[j]], band_list[[4]][[j]], band_list[[5]][[j]], band_list[[6]][[j]], band_list[[7]][[j]])  
+            }
           }
           for (j in 1:length(obs_list)) {
             raster_brick[[length(raster_brick)+1]] = obs_list[[j]]
           }
+          
         } else {
           tmp = brick(paste0(tmp_dir,raster_filename[i],"_",type_number,".tif"))
           for (j in 1:nlayers(tmp)) {
@@ -655,7 +692,7 @@ FilterValOutRangeToNA = function(x, minArg, maxArg) {
 # to do: arquivo vira float depois da covnersao, transformar em outro formato? (ex. int2s)
 # transf para int2s parece que ferra os valores
 # band values are calculated ok, tested calculating one band separatedely and compared to the batch convert
-ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_cores, log_fname, view_geometry, isMCD) {
+ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_cores, log_fname, view_geometry, isMCD, product_res) {
   # BRF = brf_reflectance  # (12 bandas por data, 1km)
   # FV = brf_fv  # (1 por data, 5km)
   # FG = brf_fg  # (1 por data, 5km)
@@ -722,7 +759,7 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   #cl = parallel::makeCluster(no_cores, outfile=log_fname)
   cl = parallel::makeCluster(min(length(BRF), no_cores))
   registerDoParallel(cl)
-  objects_to_export = c("BRF", "FV", "FG", "kL", "kV", "kG", "tile", "year", "rtls_day_vec", "ff", "FilterValOutRangeToNA")
+  objects_to_export = c("BRF", "FV", "FG", "kL", "kV", "kG", "tile", "year", "rtls_day_vec", "ff", "FilterValOutRangeToNA", "product_res")
   
   # for each date
   BRFn = foreach(i = 1:length(BRF), .packages=c("raster"), .export=objects_to_export, .errorhandling="remove", .inorder = FALSE) %dopar% {
@@ -730,7 +767,8 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
     print(paste0(Sys.time(), ": Normalizing brf iteration ",i," from ",length(BRF)))
     
     # set parameters, interpolate the 5km to 1 km by nearest neighbor
-    FVi = disaggregate(FV[[i]], fact=c(5,5))
+    dis_fac_5 = 5000 / product_res
+    FVi = disaggregate(FV[[i]], fact=c(dis_fac_5,dis_fac_5)) # fac = 5 for 1km and 10 for 0.5 km
     
     # check if FVi is available
     if (is.na(minValue(FVi)) & is.na(maxValue(FVi)))
@@ -754,7 +792,13 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
     }
     
     # calculate brf nadir
-    c(overlay(subset(BRF[[i]],1:8), kL[[idx]], kV[[idx]], kG[[idx]], FVi, FGi = disaggregate(FG[[i]], fact=c(5,5)), fun=ff))
+    if (product_res == 1000) {
+      c(overlay(subset(BRF[[i]],1:8), kL[[idx]], kV[[idx]], kG[[idx]], FVi, FGi = disaggregate(FG[[i]], fact=c(dis_fac_5,dis_fac_5)), fun=ff))
+    } else {
+      dis_fac_1 = 1000 / product_res
+      band_subset = 1:7
+      c(overlay(subset(BRF[[i]],band_subset), disaggregate(subset(kL[[idx]], band_subset), fact=c(dis_fac_1,dis_fac_1)), disaggregate(subset(kV[[idx]], band_subset), fact=c(dis_fac_1,dis_fac_1)), disaggregate(subset(kG[[idx]], band_subset), fact=c(dis_fac_1,dis_fac_1)), FVi, FGi = disaggregate(FG[[i]], fact=c(dis_fac_5,dis_fac_5)), fun=ff))
+    }
   }
   
   # finish cluster
@@ -982,6 +1026,7 @@ ReorderBrickPerBand = function(raster_brick, output_dir, tmp_dir) {
     
     # vec size
     n_samples = length(raster_brick)
+    n_layers = nlayers(raster_brick[[1]])
     
     # export normalized brf
     i=1
@@ -996,7 +1041,7 @@ ReorderBrickPerBand = function(raster_brick, output_dir, tmp_dir) {
     raster_brick = list()
     i=1
     for (i in 1:n_samples) {
-      raster_brick[[i]] = stack(paste0(norm_dir, "norm_brf_",i,"_",1:8,".tif"))
+      raster_brick[[i]] = stack(paste0(norm_dir, "norm_brf_",i,"_",1:n_layers,".tif"))
       #print(i)
     }
     
@@ -1071,7 +1116,7 @@ CalcMedianBRF = function(raster_brick_per_band, no_cores, log_fname, output_dir,
   CalcMedianAndN = cmpfun(CalcMedianAndN)
   
   # rename the first layer so we can identify the bands inside the foreach/iterator
-  for (i in 1:8)
+  for (i in 1:length(raster_brick_per_band))
     names(raster_brick_per_band[[i]])[1] = i
   
   # create the iterator object with the raster brick
@@ -1079,7 +1124,7 @@ CalcMedianBRF = function(raster_brick_per_band, no_cores, log_fname, output_dir,
   
   # Initiate cluster
   #cl = parallel::makeCluster(min(8, no_cores), outfile=log_fname)
-  cl = parallel::makeCluster(min(8, no_cores))
+  cl = parallel::makeCluster(min(length(raster_brick_per_band), no_cores))
   registerDoParallel(cl)
   objects_to_export = c("CalcMedianAndN", "output_dir", "tmp_dir")
   
@@ -1092,8 +1137,9 @@ CalcMedianBRF = function(raster_brick_per_band, no_cores, log_fname, output_dir,
     # calc median, if i == 1 save the number of pixels, otherwise just save the values
     if (names(i)[1]=="X1") {
       writeRaster(round(stack(tmp[[1]]*10000, tmp[[2]]),0), filename=paste0(tmp_dir, "Band_",names(i)[1],".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
-    } else
+    } else {
       writeRaster(round(tmp[[1]]*10000,0), filename=paste0(tmp_dir, "Band_",names(i)[1],".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
+    }
     
     # return 0 to the foreach
     c(0)
@@ -1104,10 +1150,16 @@ CalcMedianBRF = function(raster_brick_per_band, no_cores, log_fname, output_dir,
   
   # open the rasters and make a brick
   b1 = brick(paste0(tmp_dir, "Band_X",1,".tif"))
-  median_raster_brick_per_band = stack(c(b1[[1]],paste0(tmp_dir, "Band_X",c(2:8),".tif"),b1[[2]]))
+  if (length(raster_brick_per_band) > 1) {
+    median_raster_brick_per_band = stack(c(b1[[1]],paste0(tmp_dir, "Band_X",c(2:length(raster_brick_per_band)),".tif"),b1[[2]]))
+  } else {
+    median_raster_brick_per_band = stack(c(b1[[1]], b1[[2]]))
+  }
   
   # put a name to the bands
-  names(median_raster_brick_per_band)=c("band1","band2","band3","band4","band5","band6","band7","band8","no_samples")
+  #names(median_raster_brick_per_band) = c("band1","band2","band3","band4","band5","band6","band7","band8","no_samples")
+  names(median_raster_brick_per_band)[1:(length(raster_brick_per_band))] = paste0("band", 1:(length(raster_brick_per_band)))
+  names(median_raster_brick_per_band)[length(raster_brick_per_band)+1] = "no_samples"
   
   # measure time
   t2 = mytoc(t1)
@@ -1122,20 +1174,29 @@ CalcMedianBRF = function(raster_brick_per_band, no_cores, log_fname, output_dir,
 CalcMedianBRF = cmpfun(CalcMedianBRF)
 
 # function to write the processed file to disk, don't need to apply factors anymore, because we're already applying it on median
-SaveProcessedTileComposite = function(medianBRF, output_dir, composite_fname, tile, year, day, composite_no) {
+SaveProcessedTileComposite = function(medianBRF, output_dir, composite_fname, tile, year, day, composite_no, product_res = 1000) {
   # factors for each band
   #factors = c(10000,10000,10000,10000,10000,10000,10000,10000,10000)
   
   # apply factors
   #b = brick(lapply(c(1:9),FUN=function(x) round(unstack(medianBRF)[[x]]*factors[x],0)))
   
-  # test if number of layers is equal to 1, which means that is a nantile and gotta repeat it 9 times
-  if (dim(medianBRF)[3] == 1) {
-    medianBRF = brick(medianBRF, medianBRF, medianBRF, medianBRF, medianBRF, medianBRF, medianBRF, medianBRF, medianBRF)
+  # verify if tile is a nantile; if it is, we copy it as many times as needed
+  if (names(medianBRF)[1] == "nantile") {
+    # 1000 m we have bands 1-8, and 500 m we have bands 1-7, therefore 9 bands for 1000 and 8 for 500 m
+    if (product_res == 1000) {
+      medianBRF = brick(medianBRF, medianBRF, medianBRF, medianBRF, medianBRF, medianBRF, medianBRF, medianBRF, medianBRF)
+    } else {
+      medianBRF = brick(medianBRF, medianBRF, medianBRF, medianBRF, medianBRF, medianBRF, medianBRF, medianBRF)  
+    }
   }
   
   # name of the bands
-  band_names = c("band1","band2","band3","band4","band5","band6","band7","band8","no_samples")
+  if (product_res == 1000) {
+    band_names = c("band1","band2","band3","band4","band5","band6","band7","band8","no_samples")
+  } else {
+    band_names = c("band1","band2","band3","band4","band5","band6","band7","no_samples")
+  }
   
   # define the composite number or name
   if (composite_no == "month") {
@@ -1145,7 +1206,7 @@ SaveProcessedTileComposite = function(medianBRF, output_dir, composite_fname, ti
   }
   
   # write to file
-  for (i in 1:9) {
+  for (i in 1:length(band_names)) {
     writeRaster(medianBRF[[i]], filename=paste0(output_dir,composite_fname,".",tile,".",year, composite_num,".",band_names[i],".tif"), format="GTiff", overwrite=TRUE, datatype = "INT2S")
   }
   
@@ -1218,7 +1279,7 @@ CreateDayMatrix = function(composite_no = 8) {
 }
 
 # function to create composite name given parameters
-CreateCompositeName = function(composite_no, product, is_qa_filter, is_ea_filter, view_geometry = "nadir") {
+CreateCompositeName = function(composite_no, product, is_qa_filter, is_ea_filter, view_geometry = "nadir", product_res = 1000) {
   # choose function
   if (view_geometry == "nadir")
     view_geometry_str = "Nadir"
@@ -1251,6 +1312,16 @@ CreateCompositeName = function(composite_no, product, is_qa_filter, is_ea_filter
       if (is_ea_filter) {
         composite_fname = paste0(composite_fname,"_FilterEA")
       }
+    }
+  }
+  
+  # which product resolution
+  if (product_res != 1000) {
+    if (product_res == 500) {
+      composite_fname = paste0(composite_fname, "_", product_res)
+    } else {
+      print(paste0(Sys.time(), ": ERROR Product resolution invalid."))
+      stop(paste0(Sys.time(), ": ERROR Product resolution invalid."))
     }
   }
   

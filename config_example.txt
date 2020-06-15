@@ -1,3 +1,6 @@
+# product spatial resolution - either 1000 or 500 (m)
+product_res = 1000
+
 # specify gdal path
 gdal_dir = "C:\\OSGeo4W64\\bin\\"
 
