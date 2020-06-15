@@ -77,6 +77,9 @@ mosaic_output_dir = "/mnt/DATADRIVE2/ricardo_data/MAIAC_SOUTH_AMERICA/"
 # base filename of the processed file, e.g. if set mosaic_base_filename = "maiac_ricardo", the processed files will be something like "maiac_ricardo_2000064_band1_latlon_crop.tif"
 mosaic_base_filename = "maiac_south_america"
 
+# ending year for the composite
+end_year = 2019
+
 # tiles to mosaic
 # South America
 tiles_to_mosaic = c("h00v01", "h00v02", "h01v00", "h01v01", "h01v02", "h01v03", "h02v00", "h02v01", "h02v02", "h02v03", "h03v00", "h03v01", "h03v02", "h03v03", "h03v04", "h04v01", "h04v02", "h04v03", "h00v00", "h01v04", "h01v05", "h01v06", "h02v04", "h02v05")
