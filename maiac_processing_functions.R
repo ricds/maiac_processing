@@ -97,7 +97,7 @@ IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs
     write(line, file=paste0(output_dir,"missing_files.txt"), append=TRUE)
     
     # load a brick of 9 nan bands (equivalent to band1-8 and number of pixels)
-    #b = brick(lapply(c(1:9), FUN=function(x) raster(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,ifelse(product_res != 1000,paste0("_",product_res)),".tif"))))
+    #b = brick(lapply(c(1:9), FUN=function(x) raster(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,ifelse(product_res != 1000,paste0("_",product_res),""),".tif"))))
     b = GetNanTile(tile, nan_tiles_dir, isMCD, product_res)
     
     # save the nan tile as the processed tile
@@ -120,7 +120,7 @@ IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs
     write(line, file=paste0(output_dir,"missing_files.txt"), append=TRUE)
     
     # load a brick of 9 nan bands (equivalent to band1-8 and number of pixels)
-    #b = brick(lapply(c(1:9), FUN=function(x) raster(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,ifelse(product_res != 1000,paste0("_",product_res)),".tif"))))
+    #b = brick(lapply(c(1:9), FUN=function(x) raster(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,ifelse(product_res != 1000,paste0("_",product_res),""),".tif"))))
     b = GetNanTile(tile, nan_tiles_dir, isMCD, product_res)
     
     # save the nan tile as the processed tile
@@ -140,7 +140,7 @@ IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs
 
 # function to create nan tiles from a hdf file, to use in case the time series dont have data for one tile on a given date
 GetNanTile = function(tile, nan_tiles_dir, isMCD, product_res) {
-  nan_tile = raster(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,ifelse(product_res != 1000,paste0("_",product_res)),".tif"))
+  nan_tile = raster(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,ifelse(product_res != 1000,paste0("_",product_res),""),".tif"))
   names(nan_tile) = "nantile"
   return(nan_tile)
 }
@@ -148,7 +148,7 @@ GetNanTile = function(tile, nan_tiles_dir, isMCD, product_res) {
 # function to create nan tiles from a hdf file, to use in case the time series dont have data for one tile on a given date
 CreateNanTileFromFile = function(input_name, tile, nan_tiles_dir, isMCD, product_res) {
   # check if nan tile already exists
-  if (!file.exists(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""), "nantile",".",tile,ifelse(product_res != 1000,paste0("_",product_res)),".tif"))) {
+  if (!file.exists(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""), "nantile",".",tile,ifelse(product_res != 1000,paste0("_",product_res),""),".tif"))) {
     # create tmpnanfiles directory
     dir.create(file.path(nan_tiles_dir, "tmpnanfiles/"), showWarnings = FALSE)
 
@@ -156,21 +156,21 @@ CreateNanTileFromFile = function(input_name, tile, nan_tiles_dir, isMCD, product
     # get_subdatasets(input_name)
     # old maiac 500 = 7, MCD is 19-25
     gdal_translate(src_dataset = input_name,
-                   dst_dataset = paste0(nan_tiles_dir,"tmpnanfiles/",ifelse(isMCD,"MCD19A1_",""),tile,ifelse(product_res != 1000,paste0("_",product_res)),".tif"),
+                   dst_dataset = paste0(nan_tiles_dir,"tmpnanfiles/",ifelse(isMCD,"MCD19A1_",""),tile,ifelse(product_res != 1000,paste0("_",product_res),""),".tif"),
                    verbose=F, #sds=TRUE,
                    sd_index = ifelse(product_res == 1000, 1, ifelse(!isMCD, 7, 19)))
     
     # open and assign nan
-    r = raster(paste0(nan_tiles_dir,"tmpnanfiles/",ifelse(isMCD,"MCD19A1_",""),tile,ifelse(product_res != 1000,paste0("_",product_res)),".tif"))
+    r = raster(paste0(nan_tiles_dir,"tmpnanfiles/",ifelse(isMCD,"MCD19A1_",""),tile,ifelse(product_res != 1000,paste0("_",product_res),""),".tif"))
     r[]=NaN
     
     # save
-    writeRaster(r, filename=paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,ifelse(product_res != 1000,paste0("_",product_res)),".tif"), format="GTiff", datatype='INT2S', overwrite=TRUE)
+    writeRaster(r, filename=paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,ifelse(product_res != 1000,paste0("_",product_res),""),".tif"), format="GTiff", datatype='INT2S', overwrite=TRUE)
     
     # delete tmpnanfiles directory
     unlink(file.path(nan_tiles_dir, "tmpnanfiles/"), recursive=TRUE)
   } else {
-      r = raster(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,ifelse(product_res != 1000,paste0("_",product_res)),".tif"))
+      r = raster(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,ifelse(product_res != 1000,paste0("_",product_res),""),".tif"))
   }
   return(r)
 }
@@ -179,7 +179,7 @@ CreateNanTileFromFile = function(input_name, tile, nan_tiles_dir, isMCD, product
 # NOTE: this function is for the old MAIAC files pre-MCD19A1 - NOT USED ANYMORE
 CreateNanTiles = function(tile, nan_tiles_dir, latlon_tiles_dir, isMCD) {
   # check if nan tile already exists
-  if (!file.exists(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile",".",tile,ifelse(product_res != 1000,paste0("_",product_res)),".tif"))) {
+  if (!file.exists(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile",".",tile,ifelse(product_res != 1000,paste0("_",product_res),""),".tif"))) {
     # create tmpnanfiles directory
     dir.create(file.path(nan_tiles_dir, "tmpnanfiles/"), showWarnings = FALSE)
     
@@ -1418,5 +1418,16 @@ IsMCD = function(input_dir, day, year, tile) {
   return(response)
 }
 
-
-
+# function to create composite dates
+createCompDates = function(composite_no = "month", end_year = 2019) {
+  value = NA
+  if (composite_no == "month") {
+    x = expand.grid(sprintf("%02d",seq(1,12)), 2001:end_year)
+    value = c(paste0(2000,"_", sprintf("%02d",seq(3,12))), paste0(x$Var2, "_", x$Var1))
+  } else {
+    x0 = seq(composite_no, 365, composite_no)
+    x = expand.grid(sprintf("%03d", x0), 2001:end_year)
+    value = c(paste0(2000, sprintf("%03d", x0[x0>=56])), paste0(x$Var2, x$Var1))
+  }
+  return(value)
+}
