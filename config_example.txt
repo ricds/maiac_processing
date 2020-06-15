@@ -1,3 +1,6 @@
+# product spatial resolution - either 1000 or 500 (m)
+product_res = 1000
+
 # specify gdal path
 gdal_dir = "C:\\OSGeo4W64\\bin\\"
 
@@ -73,6 +76,9 @@ mosaic_output_dir = "/mnt/DATADRIVE2/ricardo_data/MAIAC_SOUTH_AMERICA/"
 
 # base filename of the processed file, e.g. if set mosaic_base_filename = "maiac_ricardo", the processed files will be something like "maiac_ricardo_2000064_band1_latlon_crop.tif"
 mosaic_base_filename = "maiac_south_america"
+
+# ending year for the composite
+end_year = 2019
 
 # tiles to mosaic
 # South America
