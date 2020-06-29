@@ -21,10 +21,13 @@ library(itertools)  #install.packages("itertools")
 functions_dir = paste0(dirname(rstudioapi::getActiveDocumentContext()$path),"/")
 
 # load config.txt file that should be in the same directory of the scripts
-source(paste0(functions_dir, "config.txt"))
+source(paste0(functions_dir, "config_mosaic_vi.txt"))
+
+# load functions
+source(paste0(functions_dir, "maiac_processing_functions.R"))
 
 # read composite vector from the functions folder
-composite_vec = read.csv(paste0(functions_dir,"maiac_composite_vec_",composite_no,".csv"), header=F)
+composite_vec = data.frame(createCompDates(composite_no, end_year = end_year))
 
 # function to calc evi
 f_evi = function(NIR, RED, BLUE) {

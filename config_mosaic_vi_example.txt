@@ -7,10 +7,6 @@ no_cores = 5
 product_res = 1000
 band_names = c("band1","band2","band3","band4","band5","band6","band7","band8","no_samples")
 
-# spatial resolution and bands
-#product_res = 500
-#band_names = c("band1","band2","band3","band4","band5","band6","band7","no_samples")
-
 # set composite
 #composite_no = "month"
 #composite_no = 16

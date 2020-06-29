@@ -72,20 +72,20 @@ isTileProcessed = function(tile, input_dir, output_dir, tmp_dir) {
 }
 
 # function to check if RTLS tile is available, if it does return TRUE, if it doesn't exist, create a "processed tile" with nan values
-IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs, maiac_ftp_url, composite_fname, downloaded_files_dir, composite_no, isMCD, product_res) {
+IsDataAvailable = function(type, tile, year, day, nan_tiles_dir, output_dir, obs, composite_fname, composite_no, isMCD, product_res) {
   # set escape variable default
   result = TRUE
   
   # retrieve data available
   if (obs=="rtls") {
-    fname = basename(GetFilenameVec(type, input_dir, downloaded_files_dir, tile, year, day, offset_days = 24))
+    fname = basename(GetFilenameVec(type, input_dir, tile, year, day, offset_days = 24))
   } else {
-    fname = basename(GetFilenameVec(type, input_dir, downloaded_files_dir, tile, year, day, offset_days = 0))
+    fname = basename(GetFilenameVec(type, input_dir, tile, year, day, offset_days = 0))
   }
   
   # if nan tile does not exist, lets create one
   if (!file.exists(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,".tif"))) {
-    CreateNanTileFromFile(input_name = GetFilenameVec(type, input_dir, downloaded_files_dir, tile, year, day, offset_days = 24)[1],
+    CreateNanTileFromFile(input_name = GetFilenameVec(type, input_dir, tile, year, day, offset_days = 24)[1],
                           tile, nan_tiles_dir, isMCD, product_res)
   }
   
@@ -205,7 +205,7 @@ CreateNanTiles = function(tile, nan_tiles_dir, latlon_tiles_dir, isMCD) {
 }
 
 # function to get filenames of each 8-day product or parameters files from a product "x", from a input directory "input_dir", of a respective "tile", "year" and day vector "day"
-GetFilenameVec = function(type, input_dir, downloaded_files_dir, tile, year, day, offset_days) {
+GetFilenameVec = function(type, input_dir, tile, year, day, offset_days) {
   # initiate some things
   result = c()
   continue_processing=TRUE
@@ -227,17 +227,7 @@ GetFilenameVec = function(type, input_dir, downloaded_files_dir, tile, year, day
     # get files from input_dir
     result = list.files(input_dir, pattern=paste(combinations,collapse="|"), recursive = TRUE, full.names = TRUE)
     result = grep("*.hdf$", result, value=T)
-    
-    # get files from downloaded_files_dir
-    result2 = list.files(downloaded_files_dir, pattern=paste(combinations,collapse="|"), recursive = TRUE, full.names = TRUE)
-    
-    # merge both, downloaded first so it has priority when filtering for duplicates
-    result = c(result2, result)
-    
-    # find and remove duplicates
-    if (length(result2)>0)
-      result = result[-c(which(duplicated(basename(result))))]
-    
+
     # if there is results, just finish processing
     if (length(result)>0) {
       continue_processing=FALSE
@@ -364,7 +354,7 @@ RemoveDirectoryFromFilenameVec = function(product_string) {
 }
 
 # function to convert BRF and RTLS files from .HDF to .TIF from an input directory "input_dir" to a temporary output directory "output_dir"/tmp
-ConvertHDF2TIF = function(product_fname, parameter_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname, is_ea_filter, is_qa_filter, downloaded_files_dir, download_enabled, process_dir, isMCD, product_res) {
+ConvertHDF2TIF = function(product_fname, parameter_fname, input_dir, output_dir, tmp_dir, no_cores, log_fname, is_ea_filter, is_qa_filter, process_dir, isMCD, product_res) {
   # message
   print(paste0(Sys.time(), ": Converting HDFs to TIF in parallel..."))
   
@@ -418,7 +408,7 @@ ConvertHDF2TIF = function(product_fname, parameter_fname, input_dir, output_dir,
   # Initiate cluster
   cl = parallel::makeCluster(min(length(x), no_cores))
   registerDoParallel(cl)
-  objects_to_export = c("x", "input_dir", "output_dir", "tmp_dir", "maiac_ftp_url", "DownloadMissingFile", "sds_to_retrieve_mat", "sds_preffix", "sds_suffix_brf","sds_suffix_rtls")
+  objects_to_export = c("x", "input_dir", "output_dir", "tmp_dir", "sds_to_retrieve_mat", "sds_preffix", "sds_suffix_brf","sds_suffix_rtls")
   
   # loop through the files
   foreach(i = 1:length(x), .packages=c("raster","gdalUtils","rgdal","RCurl"), .export=objects_to_export, .errorhandling="remove") %dopar% {
@@ -427,8 +417,7 @@ ConvertHDF2TIF = function(product_fname, parameter_fname, input_dir, output_dir,
     x1 = basename(x[i])
     
     # check if x[i] converted tif file exists
-    # if it does, just throw some message
-    # if it doesnt, try to convert, if it works nice just go on, if it doesnt try to download the tile and process it again
+    # if it does, just throw some message, otherwise try to convert again
     if (any(!file.exists(paste0(tmp_dir,x1,"_",na.omit(sds_to_retrieve_mat[i,]),".tif")))) {
       # message
       print(paste0(Sys.time(), ": Converting HDF to TIF file ",i," from ",length(x)," -> ",x1))
@@ -473,39 +462,7 @@ ConvertHDF2TIF = function(product_fname, parameter_fname, input_dir, output_dir,
           # go back to the while statement to check if all files exist
           next
         }
-        
-        # # after two tries converting again, the problem might be a corrupted HDF
-        # # option 2, corrupted HDF
-        # # solution: download again, test download for 5 times, NASA website sometimes doesn't respond
-        # try_count_download = 0
-        # while (any(!file.exists(paste0(tmp_dir,x1,"_",na.omit(sds_to_retrieve_mat[i,]),".tif"))) & try_count_download < 5 & download_enabled) {
-        #   # message
-        #   print(paste0(Sys.time(), ": Error while converting file ",i," from ",length(x)," -> ",x1))
-        #   
-        #   # download the missing file and place the file in the input folder
-        #   #DownloadMissingFile(x1, paste0(input_dir, dirname(x[i]),"/"), maiac_ftp_url, output_dir)
-        #   
-        #   # download the missing file and place the file in a download directory
-        #   DownloadMissingFile(x1, downloaded_files_dir, maiac_ftp_url, output_dir)
-        #   
-        #   # change the sds list
-        #   if (sds_to_retrieve_mat[i,1] == "01") {
-        #     sds_list = paste0(sds_preffix,paste0(downloaded_files_dir,x1),sds_suffix_brf)  # fast!
-        #   } else
-        #     sds_list = paste0(sds_preffix,paste0(downloaded_files_dir,x1),sds_suffix_rtls)  # fast!
-        #   
-        #   # try to convert again
-        #   for (j in 1:length(na.omit(sds_to_retrieve_mat[i,]))) { #sprintf("%02d",sds_to_retrieve_mat[i,][j])
-        #     if (any(as.numeric(sds_to_retrieve_mat[i,][j]) == c(15,16,33,34))) {
-        #       gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]), a_nodata=-99999)
-        #     } else
-        #       gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]))
-        #   }
-        #   
-        #   # count
-        #   try_count_download = try_count_download + 1 
-        # }
-        
+      
         # check if the file was extracted
         if (all(file.exists(paste0(tmp_dir,x1,"_",na.omit(sds_to_retrieve_mat[i,]),".tif")))) {
           print(paste0(Sys.time(), ": File ",x1," was downloaded and extracted with sucess. Error avoided (i hope), oh yeah!"))
@@ -1410,10 +1367,19 @@ YearDoy2Date = function(x, y) {
 IsMCD = function(input_dir, day, year, tile) {
   tmp = list.files(input_dir, pattern = tile, full.names=T)
   tmp = grep(paste(paste0(year, day), collapse="|"), tmp, value=T)
-  if (length(grep("MCD19A",tmp, value=T)) > 0) {
-    response = TRUE
+  if (length(tmp) == 0) {
+    print(paste0(Sys.time(), ": Couldn't find data for tile ", tile, ", year ", year, ", and day ", day[length(day)],". Going to next iteration..."))
+    # log the bad file
+    line = paste(year, day[length(day)], tile, sep=",")
+    write(line, file=paste0(output_dir,"missing_files.txt"), append=TRUE)
+    #
+    response = NA # there is no data
   } else {
-    response = FALSE
+    if (length(grep("MCD19A",tmp, value=T)) > 0) {
+      response = TRUE
+    } else {
+      response = FALSE
+    }
   }
   return(response)
 }

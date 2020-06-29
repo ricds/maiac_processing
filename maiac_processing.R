@@ -17,9 +17,9 @@
 ##
 ## IMPORTANT - READ THIS PRIOR TO RUNNING:
 ## 1) GDAL must be installed on the computer prior to processing. It can be found in websites like this: https://trac.osgeo.org/osgeo4w/
-## 2) A config file named "config.txt" must exist in the script folder describing the tiles to process and directories. A example file is provided.
-## 3) At this momment the script tries to process all MAIAC time series and there is no way to specify a start or end date. However it is possible to run specific composite/year/tile using the manual_run variable in the "config.txt"
-## 4) It is necessary to install the median2rcpp library "by hand"
+## 2) A config file named "config.txt" must exist in the script folder describing the tiles to process, dates, and directories. The "config_example.txt" example file is provided.
+## 3) It is necessary to manually install the median2rcpp library, which is basically a faster median function
+## 4) After running, if some "missing_files.txt" is produced, this correspond to files with missing data which have been filled with NA
 ##
 ## Notes to self:
 ## sds_name = c("sur_refl", "Sigma_BRFn", "Snow_Fraction", "Snow_Grain_Diameter", "Snow_Fit", "Status_QA", "sur_refl_500m", "cosSZA", "cosVZA", "RelAZ", "Scattering_Angle", "Glint_Angle", "SAZ", "VAZ", "Fv", "Fg")
@@ -70,8 +70,8 @@ source(paste0(functions_dir, "config.txt"))
 # load functions
 source(paste0(functions_dir, "maiac_processing_functions.R"))
 
-# test if input_dir_vec is empty
-if (length(list.files(input_dir_vec[1]))==0) {
+# test if input dir is empty
+if (length(list.files(manual_dir_tiles[1]))==0) {
   # message
   print(paste0(Sys.time(), ": ERROR Input directory is Empty."))
   stop(paste0(Sys.time(), ": ERROR Input directory is Empty."))
@@ -85,9 +85,6 @@ dir.create(file.path(process_dir), showWarnings = FALSE, recursive=T)
 
 # output directory, the one to export the processed composites
 output_dir = paste0(process_dir, "MAIAC_ProcessedTiles/")
-
-# directory to place downloads in case of corrupted or missing files
-downloaded_files_dir = paste0(process_dir, "MAIAC_DownloadedFiles/")
 
 # log file path, this file will contain the text output from each core running, useful for debugging
 log_fname = paste0(output_dir, "log.txt")
@@ -107,15 +104,9 @@ dir.create(file.path(nan_tiles_dir), showWarnings = FALSE, recursive=T)
 # create processed composites/tiles directory if it doesnt exist
 dir.create(file.path(output_dir), showWarnings = FALSE, recursive=T)
 
-# create downloaded files directory if it doesnt exist
-dir.create(file.path(downloaded_files_dir), showWarnings = FALSE, recursive=T)
-
 # product name MAIACTBRF, MAIACABRF, MAIACRTLS, don't change this
 product = c("MAIACTBRF","MAIACABRF","MCD19A1")
 parameters = c("MAIACRTLS","MCD19A3")
-
-# url to download maiac files for south america in case of corrupted .hdf or missing RTLS file
-maiac_ftp_url = "ftp://maiac@dataportal.nccs.nasa.gov/DataRelease/SouthAmerica/"
 
 # define the output base filename
 composite_fname = CreateCompositeName(composite_no, product, is_qa_filter, is_ea_filter, view_geometry, product_res = product_res)
@@ -159,6 +150,9 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   
   # test if this iteration is old MAIAC files or new MCD19A1 files
   isMCD = IsMCD(input_dir, day, year, tile)
+  if (is.na(isMCD)) {
+    return(0) # there is no data available
+  }
   if (isMCD) {
     product = "MCD19A1"
     parameters = "MCD19A3"
@@ -171,8 +165,8 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   if (IsTileCompositeProcessed(composite_fname, tile, year, day, output_dir, overwrite_files))
     return(0)
   
-  # if no brf or rtls is available for given day, year, tile, (1) try to download it (in case of rtls), or (2) return nan output, log the information and go to next iteration
-  if (!IsDataAvailable(product, tile, year, day, nan_tiles_dir, output_dir, obs="brf", maiac_ftp_url, composite_fname, downloaded_files_dir, composite_no, isMCD, product_res) | !IsDataAvailable(parameters, tile, year, day, nan_tiles_dir, output_dir, obs="rtls", maiac_ftp_url, composite_fname, downloaded_files_dir, composite_no, isMCD, product_res))
+  # if no brf or rtls is available for given day, year, tile, return nan output, log the information and go to next iteration
+  if (!IsDataAvailable(product, tile, year, day, nan_tiles_dir, output_dir, obs="brf", composite_fname, composite_no, isMCD, product_res) | !IsDataAvailable(parameters, tile, year, day, nan_tiles_dir, output_dir, obs="rtls", composite_fname, composite_no, isMCD, product_res))
     return(0)
 
   # set temporary directory
@@ -182,11 +176,11 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   dir.create(file.path(tmp_dir), showWarnings = FALSE)
   
   # 1) get filenames from the available products and parameters files for the iteration
-  product_fname = GetFilenameVec(product, input_dir, downloaded_files_dir, tile, year, day, offset_days=0)
-  parameter_fname = GetFilenameVec(parameters, input_dir, downloaded_files_dir, tile, year, day, offset_days=24)
+  product_fname = GetFilenameVec(product, input_dir, tile, year, day, offset_days=0)
+  parameter_fname = GetFilenameVec(parameters, input_dir, tile, year, day, offset_days=24)
 
   # 2) (parallel computing) convert files from hdf to geotif using gdal_translate
-  ConvertHDF2TIF(product_fname, parameter_fname, input_dir, output_dir, tmp_dir, maiac_ftp_url, no_cores, log_fname, is_ea_filter, is_qa_filter, downloaded_files_dir, download_enabled, process_dir, isMCD, product_res)
+  ConvertHDF2TIF(product_fname, parameter_fname, input_dir, output_dir, tmp_dir, no_cores, log_fname, is_ea_filter, is_qa_filter, process_dir, isMCD, product_res)
   
   # remove directory from filenames, return only the "filenames".hdf
   product_fname = basename(product_fname)

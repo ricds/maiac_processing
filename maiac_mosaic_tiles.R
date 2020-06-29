@@ -9,6 +9,8 @@
 ## 2) reproject files from sinusoidal to geographic projection WGS-84 (lat/lon coordinates)
 ## 3) (optional) crop the reprojected mosaic to a selected extent given lat/lon coordinates
 ##################################################
+## Requirement: setup the config_mosaic_vi.txt file
+##################################################
 
 # clear all
 rm(list = ls())
@@ -28,7 +30,7 @@ library(rstudioapi)  #install.packages("rstudioapi")
 functions_dir = paste0(dirname(rstudioapi::getActiveDocumentContext()$path),"/")
 
 # load config.txt file that should be in the same directory of the scripts
-source(paste0(functions_dir, "config.txt"))
+source(paste0(functions_dir, "config_mosaic_vi.txt"))
 
 # load functions
 source(paste0(functions_dir, "maiac_processing_functions.R"))
