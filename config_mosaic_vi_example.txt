@@ -1,0 +1,50 @@
+## Mosaic Configuration
+
+# number of cores
+no_cores = 5
+
+# spatial resolution and bands
+product_res = 1000
+band_names = c("band1","band2","band3","band4","band5","band6","band7","band8","no_samples")
+
+# spatial resolution and bands
+#product_res = 500
+#band_names = c("band1","band2","band3","band4","band5","band6","band7","no_samples")
+
+# set composite
+#composite_no = "month"
+#composite_no = 16
+composite_no = 8
+
+# ending year for the composite - just set at the last year of data
+end_year = 2019
+
+# maiac input folder
+mosaic_input_dir = "K:\\_MAIAC_8d_Nadir_500\\MAIAC_ProcessedTiles\\"
+
+# folder to put the processed files
+mosaic_output_dir = "K:\\MAIAC_8d_Nadir_500_Mosaic\\"
+
+# base filename of the processed file, e.g. if set mosaic_base_filename = "maiac_ricardo", the processed files will be something like "maiac_ricardo_2000064_band1_latlon_crop.tif"
+mosaic_base_filename = "maiac_8d_nadir_500"
+
+# tiles to mosaic - South America
+tiles_to_mosaic = c("h09v07", "h10v07", "h11v07", "h12v07", "h09v08", "h10v08", "h11v08", "h12v08", "h13v08", "h09v09", "h10v09", "h11v09", "h12v09", "h13v09", "h14v09", "h10v10", "h11v10", "h12v10", "h13v10", "h14v10", "h11v11", "h12v11", "h13v11", "h14v11", "h11v12", "h12v12", "h13v12", "h12v13", "h13v13", "h13v14", "h14v14")
+
+# crop extent information in lat/lon coordinates (min_lon, max_lon, min_lat, max_lat), if is_crop_enable is set to TRUE the script will crop the file to crop_ext extent
+is_crop_enable = FALSE
+crop_ext = NA
+# Amazonia Eva Huber, crop_ext = extent(-80, -45, -21, 9), real extent is -79.62473, -44.35324, -20.47028, 8.63236  (xmin, xmax, ymin, ymax)
+# Bamboo southwest amazon
+# crop_ext =  extent(-75, -66, -13, -6)
+# polygon to crop, set to NA if using extent
+crop_polygon = NA
+crop_raster = NA
+#crop_polygon = "/mnt/DATADRIVE2/ricardo_data/maiac_processing/auxiliar/AmazoniaLimits.shp"
+#crop_raster = "/mnt/DATADRIVE2/ricardo_data/maiac_processing/auxiliar/amazonia_raster.tif"
+# bamboo file to crop
+# crop_raster = "D:/1_Dataset/1_MODIS/1_MCD43A4_SurfRef16/4_MAIAC_Ricardo_Bambu/maiac_bamboo_2000064_band1_latlon_crop.tif"
+
+# to mask the raster by a polygon, excluding areas outside of it, set TRUE then the filename in the mask_polygon variable ( not tested :) )
+is_mask_enable = FALSE
+mask_polygon = NA
