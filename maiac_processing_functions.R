@@ -969,8 +969,8 @@ FilterEA = function(raster_brick, product_fname, output_dir, tmp_dir) {
 ReorderBrickPerBand = function(raster_brick, output_dir, tmp_dir) {
   #raster_brick = nadir_brf_reflectance
   
-  # if object is bigger than 5gb, we have to export files to disk and read it again
-  if ((object.size(raster_brick)/(1024*1024*1024)) >= 5) {
+  # if object is bigger than 30% of computer RAM, it is better to export files to disk and read it again
+  if ((object.size(raster_brick)/(1024*1024*1024)) >= as.numeric(benchmarkme::get_ram()*0.3)/(1024*1024*1024)) {
     # message
     print(paste0(Sys.time(), ": Saving normalized brf to disk - because object is too big to hold in memory..."))
     
@@ -1018,6 +1018,9 @@ ReorderBrickPerBand = function(raster_brick, output_dir, tmp_dir) {
     # message
     print(paste0(Sys.time(), ": Re-ordering brick per band ",j," from ",nlayers(raster_brick[[1]])))
     
+    # measure time
+    t1 = mytic()
+    
     # create brick
     y[[j]] = brick()
     
@@ -1025,6 +1028,13 @@ ReorderBrickPerBand = function(raster_brick, output_dir, tmp_dir) {
     for (i in 1:length(raster_brick)) {
       y[[j]] = addLayer(y[[j]],raster_brick[[i]][[j]])
     }
+    
+    # measure time
+    t2 = mytoc(t1)
+    
+    # message
+    print(paste0(Sys.time(), ": Re-ordering finished in ", t2))
+    
   }
   
   # return
