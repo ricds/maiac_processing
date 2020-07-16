@@ -1012,14 +1012,14 @@ ReorderBrickPerBand = function(raster_brick, output_dir, tmp_dir) {
   
   # new list
   y = list()
-  
+
+  # measure time
+  t1 = mytic()
+    
   # loop through bands
   for (j in 1:nlayers(raster_brick[[1]])) {
     # message
     print(paste0(Sys.time(), ": Re-ordering brick per band ",j," from ",nlayers(raster_brick[[1]])))
-    
-    # measure time
-    t1 = mytic()
     
     # create brick
     y[[j]] = brick()
@@ -1029,13 +1029,13 @@ ReorderBrickPerBand = function(raster_brick, output_dir, tmp_dir) {
       y[[j]] = addLayer(y[[j]],raster_brick[[i]][[j]])
     }
     
-    # measure time
-    t2 = mytoc(t1)
-    
-    # message
-    print(paste0(Sys.time(), ": Re-ordering finished in ", t2))
-    
   }
+  
+  # measure time
+  t2 = mytoc(t1)
+  
+  # message
+  print(paste0(Sys.time(), ": Re-ordering finished in ", t2))
   
   # return
   return(y)
