@@ -181,7 +181,12 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   parameter_fname = GetFilenameVec(parameters, input_dir, tile, year, day, offset_days=24)
 
   # 2) (parallel computing) convert files from hdf to geotif using gdal_translate
-  ConvertHDF2TIF(product_fname, parameter_fname, input_dir, output_dir, tmp_dir, no_cores, log_fname, is_ea_filter, is_qa_filter, process_dir, isMCD, product_res)
+  c2t = ConvertHDF2TIF(product_fname, parameter_fname, input_dir, output_dir, tmp_dir, no_cores, log_fname, is_ea_filter, is_qa_filter, process_dir, isMCD, product_res)
+  if (!c2t) {
+    write(j, file=paste0(process_dir,"hdf2tif_convert_fail_iteration.txt"), append=TRUE)
+    print(paste0(Sys.time(), ": Skipping to next iteration."))
+    return(0)
+  }
   
   # remove directory from filenames, return only the "filenames".hdf
   product_fname = basename(product_fname)

@@ -355,6 +355,7 @@ RemoveDirectoryFromFilenameVec = function(product_string) {
 
 # function to convert BRF and RTLS files from .HDF to .TIF from an input directory "input_dir" to a temporary output directory "output_dir"/tmp
 ConvertHDF2TIF = function(product_fname, parameter_fname, input_dir, output_dir, tmp_dir, no_cores, log_fname, is_ea_filter, is_qa_filter, process_dir, isMCD, product_res) {
+  value = TRUE
   # message
   print(paste0(Sys.time(), ": Converting HDFs to TIF in parallel..."))
   
@@ -411,7 +412,8 @@ ConvertHDF2TIF = function(product_fname, parameter_fname, input_dir, output_dir,
   objects_to_export = c("x", "input_dir", "output_dir", "tmp_dir", "sds_to_retrieve_mat", "sds_preffix", "sds_suffix_brf","sds_suffix_rtls")
   
   # loop through the files
-  foreach(i = 1:length(x), .packages=c("raster","gdalUtils","rgdal","RCurl"), .export=objects_to_export, .errorhandling="remove") %dopar% {
+  f = foreach(i = 1:length(x), .packages=c("raster","gdalUtils","rgdal","RCurl"), .export=objects_to_export, .errorhandling="remove") %dopar% {
+    value = TRUE
   #for(i in 1:length(x)) {
     # adjust output filename in case the product name has folder in the beggining
     x1 = basename(x[i])
@@ -445,27 +447,21 @@ ConvertHDF2TIF = function(product_fname, parameter_fname, input_dir, output_dir,
       try_count = 0
       while (any(!file.exists(paste0(tmp_dir,x1,"_",na.omit(sds_to_retrieve_mat[i,]),".tif"))) & try_count < 1) {
         
-        # option 1, problem in conversion
-        # solution: try to convert it again, and test for all files, test this 2 times
-        if (any(file.exists(paste0(tmp_dir,x1,"_",na.omit(sds_to_retrieve_mat[i,]),".tif"))) & try_count < 2) {
-          # try to convert again
-          for (j in 1:length(na.omit(sds_to_retrieve_mat[i,]))) { #sprintf("%02d",sds_to_retrieve_mat[i,][j])
-            if (any(as.numeric(sds_to_retrieve_mat[i,][j]) == c(15,16,33,34))) {
-              gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]), a_nodata=-99999)
-            } else
-              gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]))
-          }
-          
-          # counter
-          try_count = try_count + 1
-          
-          # go back to the while statement to check if all files exist
-          next
+        # try to convert again
+        for (j in 1:length(na.omit(sds_to_retrieve_mat[i,]))) { #sprintf("%02d",sds_to_retrieve_mat[i,][j])
+          if (any(as.numeric(sds_to_retrieve_mat[i,][j]) == c(15,16,33,34))) {
+            gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]), a_nodata=-99999)
+          } else
+            gdal_translate(sds_list[as.numeric(sds_to_retrieve_mat[i,][j])], dst_dataset = paste0(tmp_dir,x1,"_",sds_to_retrieve_mat[i,][j],".tif"), verbose=F, sdindex=as.numeric(sds_to_retrieve_mat[i,][j]))
         }
-      
+        
+        # counter
+        try_count = try_count + 1
+        
         # check if the file was extracted
         if (all(file.exists(paste0(tmp_dir,x1,"_",na.omit(sds_to_retrieve_mat[i,]),".tif")))) {
-          print(paste0(Sys.time(), ": File ",x1," was downloaded and extracted with sucess. Error avoided (i hope), oh yeah!"))
+          print(paste0(Sys.time(), ": File ",x1," was extracted with sucess. Error avoided (i hope), oh yeah!"))
+          next
         }
         
       }
@@ -478,8 +474,10 @@ ConvertHDF2TIF = function(product_fname, parameter_fname, input_dir, output_dir,
     if (any(!file.exists(paste0(tmp_dir,x1,"_",na.omit(sds_to_retrieve_mat[i,]),".tif")))) {
       print(paste0(Sys.time(), ": ERROR on file ",i," from ",length(x),", could not convert hdf2tif -> ",x1))
       write(x1, file=paste0(process_dir,"hdf2tif_convert_fail.txt"), append=TRUE)
+      value = FALSE
     }
     
+    return(FALSE)
   }
   
   # finish cluster
@@ -489,8 +487,14 @@ ConvertHDF2TIF = function(product_fname, parameter_fname, input_dir, output_dir,
   t2 = mytoc(t1)
   
   # message
-  print(paste0(Sys.time(), ": Converting HDFs to TIF in parallel finished in ", t2))
+  if (all(f)) {
+    print(paste0(Sys.time(), ": Converting HDFs to TIF in parallel finished in ", t2))
+  } else {
+    print(paste0(Sys.time(), ": Converting HDFs to TIF in parallel returned some ERRORS, finished in ", t2))
+    value = FALSE
+  }
   
+  return(value)
 }
 
 ConvertHDF2TIF = cmpfun(ConvertHDF2TIF)
@@ -1020,7 +1024,8 @@ ReorderBrickPerBand = function(raster_brick, output_dir, tmp_dir) {
   for (j in 1:nlayers(raster_brick[[1]])) {
     # message
     print(paste0(Sys.time(), ": Re-ordering brick per band ",j," from ",nlayers(raster_brick[[1]])))
-    
+  
+
     # create brick
     y[[j]] = brick()
     
@@ -1035,7 +1040,7 @@ ReorderBrickPerBand = function(raster_brick, output_dir, tmp_dir) {
   t2 = mytoc(t1)
   
   # message
-  print(paste0(Sys.time(), ": Re-ordering finished in ", t2))
+  print(paste0(Sys.time(), ": Re-organization finished in ", t2))
   
   # return
   return(y)
