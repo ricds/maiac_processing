@@ -413,8 +413,8 @@ ConvertHDF2TIF = function(product_fname, parameter_fname, input_dir, output_dir,
   
   # loop through the files
   f = foreach(i = 1:length(x), .packages=c("raster","gdalUtils","rgdal","RCurl"), .export=objects_to_export, .errorhandling="remove") %dopar% {
-	value = TRUE
   #for(i in 1:length(x)) {
+	value = TRUE
     # adjust output filename in case the product name has folder in the beggining
     x1 = basename(x[i])
     
