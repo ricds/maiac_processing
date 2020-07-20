@@ -413,7 +413,7 @@ ConvertHDF2TIF = function(product_fname, parameter_fname, input_dir, output_dir,
   
   # loop through the files
   f = foreach(i = 1:length(x), .packages=c("raster","gdalUtils","rgdal","RCurl"), .export=objects_to_export, .errorhandling="remove") %dopar% {
-    value = TRUE
+	value = TRUE
   #for(i in 1:length(x)) {
     # adjust output filename in case the product name has folder in the beggining
     x1 = basename(x[i])
@@ -465,19 +465,19 @@ ConvertHDF2TIF = function(product_fname, parameter_fname, input_dir, output_dir,
         }
         
       }
+	  
+	    # file does not exist... report in a .txt
+		if (any(!file.exists(paste0(tmp_dir,x1,"_",na.omit(sds_to_retrieve_mat[i,]),".tif")))) {
+		  print(paste0(Sys.time(), ": ERROR on file ",i," from ",length(x),", could not convert hdf2tif -> ",x1))
+		  write(x1, file=paste0(process_dir,"hdf2tif_convert_fail.txt"), append=TRUE)
+		  value = FALSE
+		}
       
     } else {
       print(paste0(Sys.time(), ": File ",i," from ",length(x)," is already converted to tif -> ",x1))
     }
-    
-    # file does not exist... report in a .txt
-    if (any(!file.exists(paste0(tmp_dir,x1,"_",na.omit(sds_to_retrieve_mat[i,]),".tif")))) {
-      print(paste0(Sys.time(), ": ERROR on file ",i," from ",length(x),", could not convert hdf2tif -> ",x1))
-      write(x1, file=paste0(process_dir,"hdf2tif_convert_fail.txt"), append=TRUE)
-      value = FALSE
-    }
-    
-    return(FALSE)
+        
+    c(value)
   }
   
   # finish cluster
