@@ -683,15 +683,24 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   }
   
   # function to normalize
+  # weights from Lyapustin et al. 2012 https://doi.org/10.1016/j.rse.2012.09.002
   ff_nadir = function(BRFi, kLi, kVi, kGi, FVi, FGi) {
-    #return(BRFi * (kLi - (0.04578*kVi) - (1.10003*kGi))/(kLi + (FVi*kVi) + (FGi*kGi)))
     a = BRFi * {kLi - {0.04578*kVi} - {1.10003*kGi}}/{kLi + {FVi*kVi} + {FGi*kGi}}
+    a[a<0 | a>1]=NA
+    a
+  }
+  
+  # function to normalize
+  # weights from Lyapustin et al. 2018 https://d-nb.info/1169826741/34
+  ff_nadir_2018 = function(BRFi, kLi, kVi, kGi, FVi, FGi) {
+    a = BRFi * {kLi - {0.0458621*kVi} - {1.1068192*kGi}}/{kLi + {FVi*kVi} + {FGi*kGi}}
     a[a<0 | a>1]=NA
     a
   }
   
   # function to normalize backscat
   ff_backscat = function(BRFi, kLi, kVi, kGi, FVi, FGi) {
+    # weights given by A. Lyapustin (person commun)
     # For AZ=180, kernels are: backward
     # Fg = 0.017440045;    Fv=0.22930469;
     a = BRFi * {kLi + {0.22930469*kVi} + {0.017440045*kGi}}/{kLi + {FVi*kVi} + {FGi*kGi}}
@@ -701,6 +710,7 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   
   # function to normalize forwardscat
   ff_forwardscat = function(BRFi, kLi, kVi, kGi, FVi, FGi) {
+    # weights given by A. Lyapustin (person commun)
     #For AZ=0, kernels are: forward
     #Fg = -1.6218740;    Fv=-0.12029795;
     a = BRFi * {kLi - {0.12029795*kVi} - {1.6218740*kGi}}/{kLi + {FVi*kVi} + {FGi*kGi}}
@@ -711,6 +721,8 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   # choose function
   if (view_geometry == "nadir")
     ff = cmpfun(ff_nadir)
+  if (view_geometry == "nadir2018")
+    ff = cmpfun(ff_nadir_2018)
   if (view_geometry == "backscat")
     ff = cmpfun(ff_backscat)
   if (view_geometry == "forwardscat")
