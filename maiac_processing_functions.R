@@ -1267,6 +1267,8 @@ CreateCompositeName = function(composite_no, product, is_qa_filter, is_ea_filter
   # choose function
   if (view_geometry == "nadir")
     view_geometry_str = "Nadir"
+  if (view_geometry == "nadir2018")
+    view_geometry_str = "Nadir"
   if (view_geometry == "backscat")
     view_geometry_str = "Backscat"
   if (view_geometry == "forwardscat")
