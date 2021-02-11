@@ -414,7 +414,7 @@ ConvertHDF2TIF = function(product_fname, parameter_fname, input_dir, output_dir,
   # loop through the files
   f = foreach(i = 1:length(x), .packages=c("raster","gdalUtils","rgdal","RCurl"), .export=objects_to_export, .errorhandling="remove") %dopar% {
   #for(i in 1:length(x)) {
-	value = TRUE
+    value = TRUE
     # adjust output filename in case the product name has folder in the beggining
     x1 = basename(x[i])
     
@@ -465,18 +465,18 @@ ConvertHDF2TIF = function(product_fname, parameter_fname, input_dir, output_dir,
         }
         
       }
-	  
-	    # file does not exist... report in a .txt
-		if (any(!file.exists(paste0(tmp_dir,x1,"_",na.omit(sds_to_retrieve_mat[i,]),".tif")))) {
-		  print(paste0(Sys.time(), ": ERROR on file ",i," from ",length(x),", could not convert hdf2tif -> ",x1))
-		  write(x1, file=paste0(process_dir,"hdf2tif_convert_fail.txt"), append=TRUE)
-		  value = FALSE
-		}
+      
+      # file does not exist... report in a .txt
+      if (any(!file.exists(paste0(tmp_dir,x1,"_",na.omit(sds_to_retrieve_mat[i,]),".tif")))) {
+        print(paste0(Sys.time(), ": ERROR on file ",i," from ",length(x),", could not convert hdf2tif -> ",x1))
+        write(x1, file=paste0(process_dir,"hdf2tif_convert_fail.txt"), append=TRUE)
+        value = FALSE
+      }
       
     } else {
       print(paste0(Sys.time(), ": File ",i," from ",length(x)," is already converted to tif -> ",x1))
     }
-        
+    
     c(value)
   }
   
@@ -653,7 +653,7 @@ FilterValOutRangeToNA = function(x, minArg, maxArg) {
 # to do: arquivo vira float depois da covnersao, transformar em outro formato? (ex. int2s)
 # transf para int2s parece que ferra os valores
 # band values are calculated ok, tested calculating one band separatedely and compared to the batch convert
-ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_cores, log_fname, view_geometry, isMCD, product_res) {
+ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_cores, log_fname, view_geometry, isMCD, product_res, tmp_dir) {
   # BRF = brf_reflectance  # (12 bandas por data, 1km)
   # FV = brf_fv  # (1 por data, 5km)
   # FG = brf_fg  # (1 por data, 5km)
@@ -666,6 +666,13 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   
   # measure time
   t1 = mytic()
+  
+  # fix FV names
+  for (i in 1:length(FV)) {
+    if (substr(names(FV[[i]]), 1,3) != "MCD") {
+      names(FV[[i]]) = basename(FV[[i]]@file@name)
+    }
+  }
   
   # define RTLS day name location in the string
   if (isMCD) {
@@ -683,24 +690,15 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   }
   
   # function to normalize
-  # weights from Lyapustin et al. 2012 https://doi.org/10.1016/j.rse.2012.09.002
   ff_nadir = function(BRFi, kLi, kVi, kGi, FVi, FGi) {
+    #return(BRFi * (kLi - (0.04578*kVi) - (1.10003*kGi))/(kLi + (FVi*kVi) + (FGi*kGi)))
     a = BRFi * {kLi - {0.04578*kVi} - {1.10003*kGi}}/{kLi + {FVi*kVi} + {FGi*kGi}}
-    a[a<0 | a>1]=NA
-    a
-  }
-  
-  # function to normalize
-  # weights from Lyapustin et al. 2018 https://d-nb.info/1169826741/34
-  ff_nadir_2018 = function(BRFi, kLi, kVi, kGi, FVi, FGi) {
-    a = BRFi * {kLi - {0.0458621*kVi} - {1.1068192*kGi}}/{kLi + {FVi*kVi} + {FGi*kGi}}
     a[a<0 | a>1]=NA
     a
   }
   
   # function to normalize backscat
   ff_backscat = function(BRFi, kLi, kVi, kGi, FVi, FGi) {
-    # weights given by A. Lyapustin (person commun)
     # For AZ=180, kernels are: backward
     # Fg = 0.017440045;    Fv=0.22930469;
     a = BRFi * {kLi + {0.22930469*kVi} + {0.017440045*kGi}}/{kLi + {FVi*kVi} + {FGi*kGi}}
@@ -710,7 +708,6 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   
   # function to normalize forwardscat
   ff_forwardscat = function(BRFi, kLi, kVi, kGi, FVi, FGi) {
-    # weights given by A. Lyapustin (person commun)
     #For AZ=0, kernels are: forward
     #Fg = -1.6218740;    Fv=-0.12029795;
     a = BRFi * {kLi - {0.12029795*kVi} - {1.6218740*kGi}}/{kLi + {FVi*kVi} + {FGi*kGi}}
@@ -721,8 +718,6 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   # choose function
   if (view_geometry == "nadir")
     ff = cmpfun(ff_nadir)
-  if (view_geometry == "nadir2018")
-    ff = cmpfun(ff_nadir_2018)
   if (view_geometry == "backscat")
     ff = cmpfun(ff_backscat)
   if (view_geometry == "forwardscat")
@@ -735,6 +730,8 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   objects_to_export = c("BRF", "FV", "FG", "kL", "kV", "kG", "tile", "year", "rtls_day_vec", "ff", "FilterValOutRangeToNA", "product_res")
   
   # for each date
+  tmp_file_names = c()
+  for (i in 1:length(BRF)) tmp_file_names[i] = paste0(tmp_dir, basename(tempfile()))
   BRFn = foreach(i = 1:length(BRF), .packages=c("raster"), .export=objects_to_export, .errorhandling="remove", .inorder = FALSE) %dopar% {
     # message
     print(paste0(Sys.time(), ": Normalizing brf iteration ",i," from ",length(BRF)))
@@ -770,7 +767,9 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
     } else {
       dis_fac_1 = 1000 / product_res
       band_subset = 1:7
-      c(overlay(subset(BRF[[i]],band_subset), disaggregate(subset(kL[[idx]], band_subset), fact=c(dis_fac_1,dis_fac_1)), disaggregate(subset(kV[[idx]], band_subset), fact=c(dis_fac_1,dis_fac_1)), disaggregate(subset(kG[[idx]], band_subset), fact=c(dis_fac_1,dis_fac_1)), FVi, FGi = disaggregate(FG[[i]], fact=c(dis_fac_5,dis_fac_5)), fun=ff))
+      c(overlay(subset(BRF[[i]],band_subset), disaggregate(subset(kL[[idx]], band_subset), fact=c(dis_fac_1,dis_fac_1)), disaggregate(subset(kV[[idx]], band_subset), fact=c(dis_fac_1,dis_fac_1)), disaggregate(subset(kG[[idx]], band_subset), fact=c(dis_fac_1,dis_fac_1)), FVi, FGi = disaggregate(FG[[i]], fact=c(dis_fac_5,dis_fac_5)), fun=ff
+                ,filename = tmp_file_names[i]
+                ))
     }
   }
   
@@ -985,7 +984,7 @@ FilterEA = function(raster_brick, product_fname, output_dir, tmp_dir) {
 ReorderBrickPerBand = function(raster_brick, output_dir, tmp_dir) {
   #raster_brick = nadir_brf_reflectance
   
-  # if object is bigger than 30% of computer RAM, it is better to export files to disk and read it again
+  # if object is bigger than 5gb, we have to export files to disk and read it again
   if ((object.size(raster_brick)/(1024*1024*1024)) >= as.numeric(benchmarkme::get_ram()*0.3)/(1024*1024*1024)) {
     # message
     print(paste0(Sys.time(), ": Saving normalized brf to disk - because object is too big to hold in memory..."))
@@ -1266,8 +1265,6 @@ CreateDayMatrix = function(composite_no = 8) {
 CreateCompositeName = function(composite_no, product, is_qa_filter, is_ea_filter, view_geometry = "nadir", product_res = 1000) {
   # choose function
   if (view_geometry == "nadir")
-    view_geometry_str = "Nadir"
-  if (view_geometry == "nadir2018")
     view_geometry_str = "Nadir"
   if (view_geometry == "backscat")
     view_geometry_str = "Backscat"
