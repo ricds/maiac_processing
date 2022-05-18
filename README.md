@@ -1,5 +1,7 @@
 # maiac_processing: Script and functions to process daily MODIS MAIAC data to BRDF-corrected 16-day and monthly mosaic composites.
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.6561351.svg)](https://doi.org/10.5281/zenodo.6561351)
+
 # *Contact*
 Ricardo Dal'Agnol da Silva, PhD<br>
 University of California, Los Angeles (UCLA)<br>
@@ -10,9 +12,11 @@ https://ricds.wordpress.com/<br>
 <BR>
 
 # *Code use*
-This code is open-source under a MIT License (https://github.com/ricds/maiac_processing/blob/master/LICENSE). Feel free to use it, just make sure you cite it:
+This code is open-source under a MIT License (https://github.com/ricds/maiac_processing/blob/master/LICENSE).
 
-> Dalagnol, R., & Wagner, F. H. (2022). maiac_processing: Script and functions to process daily MODIS MAIAC data to BRDF-corrected 16-day and monthly mosaic composites. (Version 1.0) [Computer software]. https://doi.org/10.5281/zenodo.1234
+Feel free to use it, just make sure you cite it:
+
+> Dalagnol, R., & Wagner, F. H. (2022). maiac_processing: Script and functions to process daily MODIS MAIAC data to BRDF-corrected 16-day and monthly mosaic composites. (Version 1.0) [Computer software]. https://doi.org/10.5281/zenodo.6561351 
   
   
 <BR>
