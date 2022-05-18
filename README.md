@@ -1,14 +1,20 @@
-# maiac_processing: Script and functions to process daily MODIS/MAIAC data to BRDF-corrected 16-day and monthly mosaic composites.
+# maiac_processing: Script and functions to process daily MODIS MAIAC data to BRDF-corrected 16-day and monthly mosaic composites.
 
 # *Contact*
-Ricardo Dal'Agnol da Silva<br>
-National Institute for Space Research (INPE)<br>
-Earth Observation and Geoinformatics Division (DIOTG)<br>
-São José dos Campos-SP, Brazil<br>
-e-mails: ricds@hotmail.com ; ricardo.silva@inpe.br<br>
-phone: +55 12 98208-5089<br>
+Ricardo Dal'Agnol da Silva, PhD<br>
+University of California, Los Angeles (UCLA)<br>
+Jet Propulsion Laboratory (JPL) NASA<br>
+e-mail: ricds@hotmail.com<br>
 https://ricds.wordpress.com/<br>
 
+<BR>
+
+# *Code use*
+This code is open-source under a MIT License (https://github.com/ricds/maiac_processing/blob/master/LICENSE). Feel free to use it, just make sure you cite it:
+
+> Dalagnol, R., & Wagner, F. H. (2022). maiac_processing: Script and functions to process daily MODIS MAIAC data to BRDF-corrected 16-day and monthly mosaic composites. (Version 1.0) [Computer software]. https://doi.org/10.5281/zenodo.1234
+  
+  
 <BR>
 
 # Dataset generated using the script:
