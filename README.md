@@ -12,7 +12,7 @@ https://ricds.wordpress.com/<br>
 <BR>
 
 # *Code use*
-This code is open-source under a MIT License (https://github.com/ricds/maiac_processing/blob/master/LICENSE).
+This code is open-source under a CC-BY-4.0 license (https://github.com/ricds/maiac_processing/blob/master/LICENSE).
 
 Feel free to use it, just make sure you cite it:
 
