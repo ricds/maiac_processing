@@ -30,6 +30,8 @@ Feel free to use it, just make sure you cite it:
 
 > Gatti, Luciana V., Luana S. Basso, John B. Miller, Manuel Gloor, Lucas Gatti Domingues, Henrique L. G. Cassol, Graciela Tejada, et al. 2021. “Amazonia as a Carbon Source Linked to Deforestation and Climate Change.” Nature 595 (7867): 388–93. https://doi.org/10.1038/s41586-021-03629-6.
 
+> Souza, Ranieli Dos Anjos De, Valdir Moura, Rennan Andres Paloschi, Renata Gonçalves Aguiar, Alberto Dresch Webler, and Laura De Simone Borma. 2022. “Assessing Drought Response in the Southwestern Amazon Forest by Remote Sensing and In Situ Measurements.” Remote Sensing 14 (7): 1733. https://doi.org/10.3390/rs14071733.
+
 > Signori-Müller, Caroline, Rafael S. Oliveira, Fernanda de Vasconcellos Barros, Julia Valentim Tavares, Martin Gilpin, Francisco Carvalho Diniz, Manuel J. Marca Zevallos, et al. 2021. “Non-Structural Carbohydrates Mediate Seasonal Water Stress across Amazon Forests.” Nature Communications 12 (1): 2310. https://doi.org/10.1038/s41467-021-22378-8.
 > Gatti, Luciana V., Camilla L. Cunha, Luciano Marani, Henrique L. G. Cassol, Cassiano Gustavo Messias, Egidio Arai, A. Scott Denning, et al. 2023. “Increased Amazon Carbon Emissions Mainly from Decline in Law Enforcement.” Nature 621 (7978): 318–23. https://doi.org/10.1038/s41586-023-06390-0.
 
