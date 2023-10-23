@@ -215,7 +215,7 @@ GetFilenameVec = function(type, input_dir, tile, year, day, offset_days) {
   # loop to find rtls and increase offset on each iteration
   while(length(result)==0 & continue_processing) {
     # create combinatios of product, tile, year and day
-    if (any(type == "MCD19A1") | any(type == "MCD19A3")) {
+    if (any(type == "MCD19A1") | any(type == "MCD19A3D")) {
       combinations = expand.grid(type, paste0(".A", year, sprintf("%03s",day2),"."), tile)
     } else {
       combinations = expand.grid(type, paste0(".",tile,"."), year, sprintf("%03s",day2))
@@ -373,16 +373,16 @@ ConvertHDF2TIF = function(product_fname, parameter_fname, input_dir, output_dir,
     }
     sds_to_retrieve_brf_num = c(brf_num,33,34)
     sds_to_retrieve_brf = sprintf("%02d",sds_to_retrieve_brf_num)
-    # NOTE: have to find these indices if we would like to filter the data
-    # if (is_ea_filter)
-    #   sds_to_retrieve_brf = c(sds_to_retrieve_brf,"13")
-    # if (is_qa_filter)
-    #   sds_to_retrieve_brf = c(sds_to_retrieve_brf,"06")
+    if (is_ea_filter)
+      sds_to_retrieve_brf = c(sds_to_retrieve_brf,"31")
+    if (is_qa_filter)
+      sds_to_retrieve_brf = c(sds_to_retrieve_brf,"17")
     sds_to_retrieve_rtls = c("1","2","3")
     
     # create sds_suffix and prefix
     sds_preffix = "HDF4_EOS:EOS_GRID:"
-    sds_suffix_brf = c(":grid1km:Sur_refl1",":grid1km:Sur_refl2",":grid1km:Sur_refl3",":grid1km:Sur_refl4",":grid1km:Sur_refl5",":grid1km:Sur_refl6",":grid1km:Sur_refl7",":grid1km:Sur_refl8",":grid1km:Sur_refl9",":grid1km:Sur_refl10",":grid1km:Sur_refl11",":grid1km:Sur_refl12",":grid1km:Sigma_BRFn1",":grid1km:Sigma_BRFn2",":grid1km:Snow_Fraction",":grid1km:Snow_Grain_Size",":grid1km:Snow_Fit",":grid1km:Status_QA",":grid500m:Sur_refl_500m1",":grid500m:Sur_refl_500m2",":grid500m:Sur_refl_500m3",":grid500m:Sur_refl_500m4",":grid500m:Sur_refl_500m5",":grid500m:Sur_refl_500m6",":grid500m:Sur_refl_500m7",":grid5km:cosSZA",":grid5km:cosVZA",":grid5km:RelAZ",":grid5km:Scattering_Angle",":grid5km:SAZ",":grid5km:VAZ",":grid5km:Glint_Angle",":grid5km:Fv",":grid5km:Fg")
+    #sds_suffix_brf = c(":grid1km:Sur_refl1",":grid1km:Sur_refl2",":grid1km:Sur_refl3",":grid1km:Sur_refl4",":grid1km:Sur_refl5",":grid1km:Sur_refl6",":grid1km:Sur_refl7",":grid1km:Sur_refl8",":grid1km:Sur_refl9",":grid1km:Sur_refl10",":grid1km:Sur_refl11",":grid1km:Sur_refl12",":grid1km:Sigma_BRFn1",":grid1km:Sigma_BRFn2",":grid1km:Snow_Fraction",":grid1km:Snow_Grain_Size",":grid1km:Snow_Fit",":grid1km:Status_QA",":grid500m:Sur_refl_500m1",":grid500m:Sur_refl_500m2",":grid500m:Sur_refl_500m3",":grid500m:Sur_refl_500m4",":grid500m:Sur_refl_500m5",":grid500m:Sur_refl_500m6",":grid500m:Sur_refl_500m7",":grid5km:cosSZA",":grid5km:cosVZA",":grid5km:RelAZ",":grid5km:Scattering_Angle",":grid5km:SAZ",":grid5km:VAZ",":grid5km:Glint_Angle",":grid5km:Fv",":grid5km:Fg") # v6 or prior (?)
+    sds_suffix_brf = c(":grid1km:Sur_refl1",":grid1km:Sur_refl2",":grid1km:Sur_refl3",":grid1km:Sur_refl4",":grid1km:Sur_refl5",":grid1km:Sur_refl6",":grid1km:Sur_refl7",":grid1km:Sur_refl8",":grid1km:Sur_refl9",":grid1km:Sur_refl10",":grid1km:Sur_refl11",":grid1km:Sur_refl12",":grid1km:Sigma_BRFn1",":grid1km:Sigma_BRFn2",":grid1km:Snow_Fraction",":grid1km:Snow_Grain_Size",":grid1km:Status_QA",":grid1km:Snow_Fit",":grid500m:Sur_refl_500m1",":grid500m:Sur_refl_500m2",":grid500m:Sur_refl_500m3",":grid500m:Sur_refl_500m4",":grid500m:Sur_refl_500m5",":grid500m:Sur_refl_500m6",":grid500m:Sur_refl_500m7",":grid5km:cosSZA",":grid5km:cosVZA",":grid5km:RelAZ",":grid5km:Scattering_Angle",":grid5km:SAZ",":grid5km:VAZ",":grid5km:Glint_Angle",":grid5km:Fv",":grid5km:Fg") # v6.1
     sds_suffix_rtls = c(":grid1km:Kiso",":grid1km:Kvol",":grid1km:Kgeo",":grid1km:sur_albedo",":UpdateDay")
   } else {
     # SDS numbers
@@ -522,7 +522,8 @@ LoadMAIACFiles = function(raster_filename, output_dir, tmp_dir, type, isMCD) {
   # for the new MCD product
   if (isMCD) {
     # name and order vector of the subdatasets
-    science_dataset_names = c("sur_refl1","sur_refl2","sur_refl3","sur_refl4","sur_refl5","sur_refl6","sur_refl7","sur_refl8","sur_refl9","sur_refl10","sur_refl11","sur_refl12","Sigma_BRFn1","Sigma_BRFn2","Snow_Fraction","Snow_Grain_Size","Snow_Fit","Status_QA","Sur_refl_500m1","Sur_refl_500m2","Sur_refl_500m3","Sur_refl_500m4","Sur_refl_500m5","Sur_refl_500m6","Sur_refl_500m7","cosSZA","cosVZA","RelAZ","Scattering_Angle","SAZ","VAZ","Glint_Angle","Fv","Fg")
+    #science_dataset_names = c("sur_refl1","sur_refl2","sur_refl3","sur_refl4","sur_refl5","sur_refl6","sur_refl7","sur_refl8","sur_refl9","sur_refl10","sur_refl11","sur_refl12","Sigma_BRFn1","Sigma_BRFn2","Snow_Fraction","Snow_Grain_Size","Snow_Fit","Status_QA","Sur_refl_500m1","Sur_refl_500m2","Sur_refl_500m3","Sur_refl_500m4","Sur_refl_500m5","Sur_refl_500m6","Sur_refl_500m7","cosSZA","cosVZA","RelAZ","Scattering_Angle","SAZ","VAZ","Glint_Angle","Fv","Fg") # v6 or prior (?)
+    science_dataset_names = c("sur_refl1","sur_refl2","sur_refl3","sur_refl4","sur_refl5","sur_refl6","sur_refl7","sur_refl8","sur_refl9","sur_refl10","sur_refl11","sur_refl12","Sigma_BRFn1","Sigma_BRFn2","Snow_Fraction","Snow_Grain_Size","Status_QA","Snow_Fit","Sur_refl_500m1","Sur_refl_500m2","Sur_refl_500m3","Sur_refl_500m4","Sur_refl_500m5","Sur_refl_500m6","Sur_refl_500m7","cosSZA","cosVZA","RelAZ","Scattering_Angle","VAZ","SAZ","Glint_Angle","Fv","Fg") # v6.1
     science_dataset_parameter_names = c("Kiso", "Kvol", "Kgeo", "sur_albedo", "UpdateDay")
     
     # identify the type
@@ -686,7 +687,7 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   # retrieve RTLS day
   rtls_day_vec = vector()
   for (i in 1:length(kL)) {
-    rtls_day_vec[i] = as.numeric(substr(names(kL[[i]])[[1]],rtls_day_str_begin,rtls_day_str_end))
+    rtls_day_vec[i] = as.numeric(substr(names(kL[[i]])[[1]],rtls_day_str_begin+1,rtls_day_str_end+1))
   }
   
   # function to normalize
@@ -749,10 +750,15 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
     
     # get rtls days that are lower than image day, and that are near the image day until 8 days (the aggreagated rtls), get always the lowest rlts day (index 1)
     if (isMCD) {
-      idx = which(img_day >= rtls_day_vec & abs(rtls_day_vec - img_day) < 8)[1]
+      #idx = which(img_day >= rtls_day_vec & abs(rtls_day_vec - img_day) < 8)[1] # v6
+      idx = which(img_day == rtls_day_vec) # v6.1
     } else {
       idx = which(img_day <= rtls_day_vec & abs(rtls_day_vec - img_day) <= 8)[1]
     }
+    #print(idx)
+    #print(img_day)
+    #print(rtls_day_vec[idx])
+    #i=i+1
 
     # if there is no rtls available, get the closest one and log it
     if (is.na(idx)) {
@@ -897,10 +903,10 @@ CreateSingleQAMask = function(raster_file) {
   
   if (length(uniqueQA) > 0) {
     # compute qa dataframe with all possible quality combinations in the image
-    qaDF = computeQuality(uniqueQA)
+    qaDF = ComputeQuality(uniqueQA)
     
     # filter the qa dataframe with a set of determined rules excluding the bad ones
-    qaDFFiltered = filterQuality(qaDF)
+    qaDFFiltered = FilterQuality(qaDF)
     
     # create the mask using the remaining QA, rest of values become NaN
     if (dim(qaDFFiltered)[1] > 0)
@@ -918,17 +924,49 @@ CreateSingleQAMask = function(raster_file) {
 
 # function to create a qa mask based on a qa raster brick "raster_brick"
 CreateQAMask = function(raster_brick) {
-  # initiate list
-  mask_brick = list()
+  # # initiate list
+  # mask_brick = list()
+  # 
+  # # loop through the brick
+  # for (i in 1:length(raster_brick)) {
+  #   # message
+  #   print(paste0(Sys.time(), ": Creating qa mask file ",i," from ",length(raster_brick)))
+  #   
+  #   # add to the brick
+  #   mask_brick[[i]] = CreateSingleQAMask(raster_brick[[i]])
+  # }
   
-  # loop throught the brick
-  for (i in 1:length(raster_brick)) {
+  # message
+  print(paste0(Sys.time(), ": Extracting QA..."))
+  
+  # measure time
+  t1 = mytic()
+  
+  # Initiate cluster
+  #cl = parallel::makeCluster(no_cores, outfile=log_fname)
+  cl = parallel::makeCluster(min(length(raster_brick), no_cores))
+  registerDoParallel(cl)
+  objects_to_export = c("raster_brick", "CreateSingleQAMask", "ComputeQuality", "FilterQuality")
+  
+  # for each date
+  mask_brick = foreach(i = 1:length(raster_brick), .packages=c("raster"), .export=objects_to_export, .errorhandling="remove", .inorder = TRUE) %dopar% {
+    
     # message
     print(paste0(Sys.time(), ": Creating qa mask file ",i," from ",length(raster_brick)))
     
     # add to the brick
-    mask_brick[[i]] = CreateSingleQAMask(raster_brick[[i]])
+    CreateSingleQAMask(raster_brick[[i]])
+    
   }
+  
+  # finish cluster
+  stopCluster(cl)
+
+  # measure time
+  t2 = mytoc(t1)
+  
+  # message
+  print(paste0(Sys.time(), ": Extracting QA finished in ", t2))
   
   # return
   return(mask_brick)
@@ -936,28 +974,58 @@ CreateQAMask = function(raster_brick) {
 
 # function to apply the QA mask over a raster brick of the same size
 ApplyMaskOnBrick = function(raster_brick, mask_brick) {
-  # initiate list
-  masked_raster_brick = list()
+  # # initiate list
+  # masked_raster_brick = list()
+  # 
+  # # loop throught the "raster_brick" brick
+  # for (i in 1:length(raster_brick)) {
+  #   # message
+  #   print(paste0(Sys.time(), ": Applying mask in file ",i," from ",length(raster_brick)))
+  #   
+  #   # apply mask
+  #   masked_raster_brick[[i]] = mask(raster_brick[[i]], mask_brick[[i]])
+  # }
   
-  # loop throught the "raster_brick" brick
-  for (i in 1:length(raster_brick)) {
+  # message
+  print(paste0(Sys.time(), ": Applying mask..."))
+  
+  # measure time
+  t1 = mytic()
+  
+  # Initiate cluster
+  #cl = parallel::makeCluster(no_cores, outfile=log_fname)
+  cl = parallel::makeCluster(min(length(raster_brick), no_cores))
+  registerDoParallel(cl)
+  objects_to_export = c("raster_brick", "mask_brick")
+  
+  # for each raster
+  masked_raster_brick = foreach(i = 1:length(raster_brick), .packages=c("raster"), .export=objects_to_export, .errorhandling="remove", .inorder = TRUE) %dopar% {
     # message
     print(paste0(Sys.time(), ": Applying mask in file ",i," from ",length(raster_brick)))
     
     # apply mask
-    masked_raster_brick[[i]] = mask(raster_brick[[i]], mask_brick[[i]])
+    mask(raster_brick[[i]], mask_brick[[i]])
   }
+  
+  # finish cluster
+  stopCluster(cl)
+  
+  # measure time
+  t2 = mytoc(t1)
+  
+  # message
+  print(paste0(Sys.time(), ": Applying mask finished in ", t2))
   
   # return
   return(masked_raster_brick)
 }
 
 # function to create extreme azimutal angle >80 mask and apply to BRF
-FilterEA = function(raster_brick, product_fname, output_dir, tmp_dir) {
+FilterEA = function(raster_brick, product_fname, output_dir, tmp_dir, isMCD) {
   #cosSZA = LoadMAIACFiles(product_fname, tmp_dir, "cosSZA")
   #cosSZA = FilterValOutRangeToNA(cosSZA, -10000, 10000)
   #acosSZA = lapply(cosSZA,FUN = function(raster_brick) calc(raster_brick, fun = acos))
-  SAZ = LoadMAIACFiles(product_fname, tmp_dir, "SAZ")
+  SAZ = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "SAZ", isMCD)
   SAZ = FilterValOutRangeToNA(SAZ, -10000, 80)
   
   # function to create the mask
@@ -1314,6 +1382,7 @@ CreateCompositeName = function(composite_no, product, is_qa_filter, is_ea_filter
 
 # function to create loop mat, filtering the start and end dates from loop_mat, depending on composite_no
 CreateLoopMat = function(day_mat, composite_no, input_dir_vec, tile_vec, manual_run) {
+  ## the else part of this function is deprecated i think, using the input_dir_vec and tile_vec
 
   # check if this is a manual run and create the loop_mat with the specific configuration
   if (any(manual_run != FALSE)) {

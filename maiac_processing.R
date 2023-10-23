@@ -50,7 +50,7 @@ library(Rcpp)  #install.packages("Rcpp")
 library(itertools)  #install.packages("itertools")
 library(plyr)  #install.packages("plyr")
 library(median2rcpp)  # download.file("https://www.dropbox.com/s/chneec889dl0nck/median2rcpp_0.1.0.tar.gz?raw=1", destfile = "median2rcpp_0.1.0.tar.gz", mode="wb"); system({'R CMD INSTALL "median2rcpp_0.1.0.tar.gz"'})
-library(benchmarkme)
+#library(benchmarkme)
 
 # pre-compile code to try to speed things up - not sure if it works - must run the command twice don't know why
 enableJIT(3)
@@ -107,7 +107,7 @@ dir.create(file.path(output_dir), showWarnings = FALSE, recursive=T)
 
 # product name MAIACTBRF, MAIACABRF, MAIACRTLS, don't change this
 product = c("MAIACTBRF","MAIACABRF","MCD19A1")
-parameters = c("MAIACRTLS","MCD19A3")
+parameters = c("MAIACRTLS","MCD19A3D")
 
 # define the output base filename
 composite_fname = CreateCompositeName(composite_no, product, is_qa_filter, is_ea_filter, view_geometry, product_res = product_res)
@@ -132,19 +132,26 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   # measure time
   t1 = mytic()
   
+  # For testing: manually setting the tile and year and input
+  if (FALSE) {
+    input_dir = "E:/MAIAC_Download/"
+    tile = "h12v10"
+    year = 2023
+  }
+  
   # get input_dir from loop_mat
   input_dir = as.character(loop_mat[j,3])
-  
+
   # get tile from loop_mat
   tile = as.character(loop_mat[j,4])
-  
+
   # get year from loop_mat
   year = as.numeric(loop_mat[j,2])
   
   # get the day vector from loop_mat, if its monthly get the dates according to the year, otherwise just get the values from day_mat
   if (composite_no == "month") {
-    days_of_months = matrix(diff(seq(as.Date("2000-01-01"), as.Date("2021-01-01"), by = "month")), ncol = 12, byrow = T)
-    day = format(seq(from = as.Date(paste0(year,"-", as.numeric(loop_mat[j,1]), "-01")), to = as.Date(paste0(year,"-", as.numeric(loop_mat[j,1]), "-", days_of_months[which(2000:2020==year),as.numeric(loop_mat[j,1])])), by = 1), "%j")
+    days_of_months = matrix(diff(seq(as.Date("2000-01-01"), as.Date("2040-01-01"), by = "month")), ncol = 12, byrow = T)
+    day = format(seq(from = as.Date(paste0(year,"-", as.numeric(loop_mat[j,1]), "-01")), to = as.Date(paste0(year,"-", as.numeric(loop_mat[j,1]), "-", days_of_months[which(2000:2040==year),as.numeric(loop_mat[j,1])])), by = 1), "%j")
   } else {
     day = day_mat[as.numeric(loop_mat[j,1]),]
   }
@@ -156,7 +163,7 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   }
   if (isMCD) {
     product = "MCD19A1"
-    parameters = "MCD19A3"
+    parameters = "MCD19A3D"
   } else {
     product = c("MAIACTBRF","MAIACABRF")
     parameters = "MAIACRTLS"
@@ -169,7 +176,7 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   # if no brf or rtls is available for given day, year, tile, return nan output, log the information and go to next iteration
   if (!IsDataAvailable(product, tile, year, day, nan_tiles_dir, output_dir, obs="brf", composite_fname, composite_no, isMCD, product_res) | !IsDataAvailable(parameters, tile, year, day, nan_tiles_dir, output_dir, obs="rtls", composite_fname, composite_no, isMCD, product_res))
     return(0)
-
+  
   # set temporary directory
   tmp_dir = paste0(tempdir(), "\\tmp_",tile,"_",year,day[length(day)],"/")
   
@@ -179,7 +186,7 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   # 1) get filenames from the available products and parameters files for the iteration
   product_fname = GetFilenameVec(product, input_dir, tile, year, day, offset_days=0)
   parameter_fname = GetFilenameVec(parameters, input_dir, tile, year, day, offset_days=24)
-
+  
   # 2) (parallel computing) convert files from hdf to geotif using gdal_translate
   c2t = ConvertHDF2TIF(product_fname, parameter_fname, input_dir, output_dir, tmp_dir, no_cores, log_fname, is_ea_filter, is_qa_filter, process_dir, isMCD, product_res)
   if (!c2t) {
@@ -200,7 +207,21 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   rtls_kvol = LoadMAIACFiles(parameter_fname, output_dir, tmp_dir, "Kvol", isMCD)
   rtls_kgeo = LoadMAIACFiles(parameter_fname, output_dir, tmp_dir, "Kgeo", isMCD)
   
-  # 4) (parallel computing) apply brf normalization to nadir for each date using the respective RTLS parameters or nearest RTLS file, and the eq. from MAIAC documentation: (BRFn = BRF * (kL - 0.04578*kV - 1.10003*kG)/( kL + FV*kV + FG*kG))
+  # 4) (optional) load QA layers, create a mask for each date excluding bad pixels (possibly cloud, adjacent cloud, cloud shadows, etc.) and apply the mask
+  # remove pixels such as: possibly cloud, cloud adjacent, cloud shadow, etc.
+  if (is_qa_filter) {
+    qa_brick = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "Status_QA", isMCD)
+    qa_mask = CreateQAMask(qa_brick)
+    brf_reflectance = ApplyMaskOnBrick(brf_reflectance, qa_mask)
+    rm(list = c("qa_brick","qa_mask"))
+  }
+  
+  # 5) (optional) create and apply mask based on extreme sun angles >80 deg.
+  if (is_ea_filter) {
+    brf_reflectance = FilterEA(brf_reflectance, product_fname, output_dir, tmp_dir, isMCD)
+  }
+  
+  # 6) (parallel computing) apply brf normalization to nadir for each date using the respective RTLS parameters or nearest RTLS file, and the eq. from MAIAC documentation: (BRFn = BRF * (kL - 0.04578*kV - 1.10003*kG)/( kL + FV*kV + FG*kG))
   nadir_brf_reflectance = ConvertBRFNadir(brf_reflectance, brf_fv, brf_fg, rtls_kiso, rtls_kvol, rtls_kgeo, tile, year, output_dir, no_cores, log_fname, view_geometry, isMCD, product_res, tmp_dir)
   rm(list = c("brf_reflectance", "brf_fv", "brf_fg", "rtls_kiso", "rtls_kvol", "rtls_kgeo"))
   
@@ -209,20 +230,6 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
     nan_tile = GetNanTile(tile, nan_tiles_dir, isMCD, product_res)
     SaveProcessedTileComposite(nan_tile, output_dir, composite_fname, tile, year, day, composite_no)
     return(0)
-  }
-  
-  # 5 (optional) load QA layers, create a mask for each date excluding bad pixels (possibly cloud, adjacent cloud, cloud shadows, etc.) and apply the mask
-  # remove pixels such as: possibly cloud, cloud adjacent, cloud shadow, etc.
-  if (is_qa_filter) {
-    qa_brick = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "Status_QA")
-    qa_mask = CreateQAMask(qa_brick)
-    nadir_brf_reflectance = ApplyMaskOnBrick(nadir_brf_reflectance, qa_mask)
-    rm(list = c("qa_brick","qa_mask"))
-  }
-  
-  # 6) (optional) create and apply mask based on extreme sun angles >80 deg.
-  if (is_ea_filter) {
-    nadir_brf_reflectance = FilterEA(nadir_brf_reflectance, product_fname, output_dir, tmp_dir)
   }
   
   # put the bands together so its easier to calc the median
@@ -240,10 +247,14 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   } else {
     composite_num = day[length(day)]
   }
-  png(filename=paste0(tile_preview_dir,"fig_",composite_fname,"_",tile,"_",year,composite_num,".png"), type="cairo", units="cm", width=15, height=15, pointsize=10, res=300)
-  par(oma=c(4,4,4,4))
-  plot(stack(median_brf_reflectance[[1:(nlayers(median_brf_reflectance)-1)]]/10000, median_brf_reflectance[[nlayers(median_brf_reflectance)]]))
-  dev.off()
+  
+  # output png with the images
+  if (FALSE) {
+    png(filename=paste0(tile_preview_dir,"fig_",composite_fname,"_",tile,"_",year,composite_num,".png"), type="cairo", units="cm", width=15, height=15, pointsize=10, res=300)
+    par(oma=c(4,4,4,4))
+    plot(stack(median_brf_reflectance[[1:(nlayers(median_brf_reflectance)-1)]]/10000, median_brf_reflectance[[nlayers(median_brf_reflectance)]]))
+    dev.off()
+  }
   
   # 9) save the processed composite
   SaveProcessedTileComposite(median_brf_reflectance, output_dir, composite_fname, tile, year, day, composite_no, product_res)

@@ -22,6 +22,7 @@ library(raster)
 library(foreach)
 library(doParallel)
 library(rstudioapi)  #install.packages("rstudioapi")
+library(compiler)  #install.packages("compiler")
 
 
 # PROCESS -----------------------------------------------------------------
@@ -76,6 +77,7 @@ f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster","gdalUtils","rgdal")
   
   # filter for tiles
   file_list = grep(file_list, pattern = paste(tiles_to_mosaic, collapse="|"), value=T)
+  file_list = grep(file_list, pattern = ".tif$", value=T)
   
   # if there are files with the given composite name
   if (length(file_list)!=0) {
@@ -109,7 +111,8 @@ f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster","gdalUtils","rgdal")
           gdalwarp(srcfile = paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],".tif"),
                    dstfile = paste0(mosaic_output_dir,mosaic_base_filename,"_",composite_vec[i,],"_",band_names[j],"_latlon.tif"),
                    overwrite = TRUE,
-                   t_srs = "+init=epsg:4326 +proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0",
+                   #t_srs = "+init=epsg:4326 +proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0",
+                   t_srs = "+proj=longlat +datum=WGS84 +no_defs",
                    s_srs = source_srs,
                    ot="Int16",
                    tr=spat_res, # 0.009107388 is the resolution from the old series
