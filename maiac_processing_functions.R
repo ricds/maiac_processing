@@ -151,7 +151,7 @@ CreateNanTileFromFile = function(input_name, tile, nan_tiles_dir, isMCD, product
   if (!file.exists(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""), "nantile",".",tile,ifelse(product_res != 1000,paste0("_",product_res),""),".tif"))) {
     # create tmpnanfiles directory
     dir.create(file.path(nan_tiles_dir, "tmpnanfiles/"), showWarnings = FALSE)
-
+    
     # convert
     # get_subdatasets(input_name)
     # old maiac 500 = 7, MCD is 19-25
@@ -170,7 +170,7 @@ CreateNanTileFromFile = function(input_name, tile, nan_tiles_dir, isMCD, product
     # delete tmpnanfiles directory
     unlink(file.path(nan_tiles_dir, "tmpnanfiles/"), recursive=TRUE)
   } else {
-      r = raster(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,ifelse(product_res != 1000,paste0("_",product_res),""),".tif"))
+    r = raster(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,ifelse(product_res != 1000,paste0("_",product_res),""),".tif"))
   }
   return(r)
 }
@@ -199,7 +199,7 @@ CreateNanTiles = function(tile, nan_tiles_dir, latlon_tiles_dir, isMCD) {
     # delete tmpnanfiles directory
     unlink(file.path(nan_tiles_dir, "tmpnanfiles/"), recursive=TRUE)
   } else {
-      r = raster(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,".tif"))
+    r = raster(paste0(nan_tiles_dir,ifelse(isMCD,"MCD19A1_",""),"nantile.",tile,".tif"))
   }
   return(r)
 }
@@ -227,7 +227,7 @@ GetFilenameVec = function(type, input_dir, tile, year, day, offset_days) {
     # get files from input_dir
     result = list.files(input_dir, pattern=paste(combinations,collapse="|"), recursive = TRUE, full.names = TRUE)
     result = grep("*.hdf$", result, value=T)
-
+    
     # if there is results, just finish processing
     if (length(result)>0) {
       continue_processing=FALSE
@@ -402,7 +402,7 @@ ConvertHDF2TIF = function(product_fname, parameter_fname, input_dir, output_dir,
   
   # create sds_to_retrieve list
   sds_to_retrieve_mat = rbind.fill.matrix(matrix(sds_to_retrieve_brf,length(product_fname),length(sds_to_retrieve_brf), byrow=T),matrix(sds_to_retrieve_rtls,length(parameter_fname),length(sds_to_retrieve_rtls), byrow=T))
-
+  
   # merge x and y
   x = c(product_fname,parameter_fname)
   
@@ -413,7 +413,7 @@ ConvertHDF2TIF = function(product_fname, parameter_fname, input_dir, output_dir,
   
   # loop through the files
   f = foreach(i = 1:length(x), .packages=c("raster","gdalUtils","rgdal","RCurl"), .export=objects_to_export, .errorhandling="remove") %dopar% {
-  #for(i in 1:length(x)) {
+    #for(i in 1:length(x)) {
     value = TRUE
     # adjust output filename in case the product name has folder in the beggining
     x1 = basename(x[i])
@@ -605,6 +605,263 @@ LoadMAIACFiles = function(raster_filename, output_dir, tmp_dir, type, isMCD) {
   return(raster_brick)
 }
 
+# function to load files of a specific type from the temporary output folder "output_dir"/tmp
+LoadMAIACFilesGDAL = function(raster_filename, output_dir, tmp_dir, type, isMCD, product_type) {
+  # list of bricks
+  raster_brick = list()
+  
+  # adjust the 'type' variable for the brf according to resolution and product
+  if (is.numeric(type)) {
+    product_res = type
+    
+    if (product_res == 1000) {
+      type = "sur_refl"
+    } else {
+      if (isMCD) {
+        type = "Sur_refl_500m"
+      } else {
+        type = "sur_refl_500m"
+      }
+    }
+  }
+  
+  
+  # name and order vector of the subdatasets
+  #science_dataset_names = c("sur_refl1","sur_refl2","sur_refl3","sur_refl4","sur_refl5","sur_refl6","sur_refl7","sur_refl8","sur_refl9","sur_refl10","sur_refl11","sur_refl12","Sigma_BRFn1","Sigma_BRFn2","Snow_Fraction","Snow_Grain_Size","Snow_Fit","Status_QA","Sur_refl_500m1","Sur_refl_500m2","Sur_refl_500m3","Sur_refl_500m4","Sur_refl_500m5","Sur_refl_500m6","Sur_refl_500m7","cosSZA","cosVZA","RelAZ","Scattering_Angle","SAZ","VAZ","Glint_Angle","Fv","Fg") # v6 or prior (?)
+  science_dataset_names = c("sur_refl1","sur_refl2","sur_refl3","sur_refl4","sur_refl5","sur_refl6","sur_refl7","sur_refl8","sur_refl9","sur_refl10","sur_refl11","sur_refl12","Sigma_BRFn1","Sigma_BRFn2","Snow_Fraction","Snow_Grain_Size","Status_QA","Snow_Fit","Sur_refl_500m1","Sur_refl_500m2","Sur_refl_500m3","Sur_refl_500m4","Sur_refl_500m5","Sur_refl_500m6","Sur_refl_500m7","cosSZA","cosVZA","RelAZ","Scattering_Angle","VAZ","SAZ","Glint_Angle","Fv","Fg") # v6.1
+  science_dataset_parameter_names = c("Kiso", "Kvol", "Kgeo", "sur_albedo", "UpdateDay")
+  
+  # identify the type
+  if (type == "sur_refl") {
+    type_number = sprintf("%02d", 1:8)
+  } else {
+    if (type == "Sur_refl_500m") {
+      type_number = sprintf("%02d", 19:25)
+    } else {
+      type_number = sprintf("%02d", grep(paste0("^", type, "$"), science_dataset_names))
+      if (length(type_number)==0) type_number = sprintf("%01d", grep(paste0("^", type, "$"), science_dataset_parameter_names))
+      if (length(type_number)==0) {
+        # message
+        stop(paste0(Sys.time(), ": Can't find file type to open: ",type))
+      }
+    }
+  }
+  
+  # empty vector to store results
+  observations_fnames = c()
+  
+  # loop though files and load the files
+  i=1
+  for(i in 1:length(raster_filename)) {
+    
+    # change number of observations depending on the product
+    if (product_type == "A1") {
+      # number of observations in this raster
+      n_obs = nlayers(brick(paste0(tmp_dir,raster_filename[i],"_",type_number[1],".tif")))  
+    } else {
+      n_obs = 1
+    }
+    
+    # load band filenames
+    j=1
+    fname_list = c()
+    for (j in 1:length(type_number)) {
+      fname_list[j] = paste0(tmp_dir,raster_filename[i],"_",type_number[j],".tif")
+    }
+    
+    # loop observations
+    obs=1
+    for (obs in 1:n_obs) {
+      
+      # save each band separately
+      fname_tif_list = c()
+      for (w in 1:length(fname_list)) {
+        # get the bands
+        fname_tif_list[w] = paste0(tempfile(),".tif")
+        gdal_translate_run = paste("gdal_translate",
+                                   "-of GTiff",
+                                   ifelse(product_type == "A1", paste0("-b ",obs), ""),
+                                   fname_list[w],
+                                   fname_tif_list[w])
+        system(gdal_translate_run)
+      }
+      
+      # create vrt
+      fname_vrt = vrt_imgs(fname_tif_list, "gdalbuildvrt", add_cmd = ifelse(product_type == "A1","-separate",""))
+      
+      # combine them back together into one geotiff
+      tmp_output_fname = paste0(tempfile(),".tif")
+      gdal_translate_run = paste("gdal_translate",
+                                 "-of GTiff",
+                                 fname_vrt,
+                                 tmp_output_fname)
+      system(gdal_translate_run)
+      
+      # remove temp files
+      file.remove(fname_tif_list)
+      file.remove(fname_vrt)
+      
+      # assign result to the vector
+      observations_fnames[length(observations_fnames)+1] = tmp_output_fname
+      
+    } # end observations
+    
+  }
+  
+  # return
+  return(observations_fnames)
+}
+
+# function to load files of a specific type from the temporary output folder "output_dir"/tmp
+LoadMAIACFilesGDALParallel = function(raster_filename, output_dir, tmp_dir, type, isMCD, product_type) {
+
+  # adjust the 'type' variable for the brf according to resolution and product
+  if (is.numeric(type)) {
+    product_res = type
+    
+    if (product_res == 1000) {
+      type = "sur_refl"
+    } else {
+      if (isMCD) {
+        type = "Sur_refl_500m"
+      } else {
+        type = "sur_refl_500m"
+      }
+    }
+  }
+  
+  
+  # name and order vector of the subdatasets
+  #science_dataset_names = c("sur_refl1","sur_refl2","sur_refl3","sur_refl4","sur_refl5","sur_refl6","sur_refl7","sur_refl8","sur_refl9","sur_refl10","sur_refl11","sur_refl12","Sigma_BRFn1","Sigma_BRFn2","Snow_Fraction","Snow_Grain_Size","Snow_Fit","Status_QA","Sur_refl_500m1","Sur_refl_500m2","Sur_refl_500m3","Sur_refl_500m4","Sur_refl_500m5","Sur_refl_500m6","Sur_refl_500m7","cosSZA","cosVZA","RelAZ","Scattering_Angle","SAZ","VAZ","Glint_Angle","Fv","Fg") # v6 or prior (?)
+  science_dataset_names = c("sur_refl1","sur_refl2","sur_refl3","sur_refl4","sur_refl5","sur_refl6","sur_refl7","sur_refl8","sur_refl9","sur_refl10","sur_refl11","sur_refl12","Sigma_BRFn1","Sigma_BRFn2","Snow_Fraction","Snow_Grain_Size","Status_QA","Snow_Fit","Sur_refl_500m1","Sur_refl_500m2","Sur_refl_500m3","Sur_refl_500m4","Sur_refl_500m5","Sur_refl_500m6","Sur_refl_500m7","cosSZA","cosVZA","RelAZ","Scattering_Angle","VAZ","SAZ","Glint_Angle","Fv","Fg") # v6.1
+  science_dataset_parameter_names = c("Kiso", "Kvol", "Kgeo", "sur_albedo", "UpdateDay")
+  
+  # identify the type
+  if (type == "sur_refl") {
+    type_number = sprintf("%02d", 1:8)
+  } else {
+    if (type == "Sur_refl_500m") {
+      type_number = sprintf("%02d", 19:25)
+    } else {
+      type_number = sprintf("%02d", grep(paste0("^", type, "$"), science_dataset_names))
+      if (length(type_number)==0) type_number = sprintf("%01d", grep(paste0("^", type, "$"), science_dataset_parameter_names))
+      if (length(type_number)==0) {
+        # message
+        stop(paste0(Sys.time(), ": Can't find file type to open: ",type))
+      }
+    }
+  }
+  
+  # create vector of filenames for the temporary files
+  if (TRUE) {
+    # empty vector to store results
+    observations_fnames = list()
+    
+    # loop though files and load the files
+    i=1
+    for (i in 1:length(raster_filename)) {
+      
+      # change number of observations depending on the product
+      if (product_type == "A1") {
+        # number of observations in this raster
+        n_obs = nlayers(brick(paste0(tmp_dir,raster_filename[i],"_",type_number[1],".tif")))  
+      } else {
+        n_obs = 1
+      }
+      
+      # create vec
+      observations_fnames[[i]] = vector("character", n_obs)
+      
+      # create temp file
+      for (obs in 1:n_obs) {
+        # tmp filename
+        tmp_output_fname = paste0(tempfile(),".tif")
+        
+        # assign result to the vector
+        observations_fnames[[i]][obs] = tmp_output_fname
+        
+      }
+    }
+  } # end filename creation
+
+  
+  # loop though files and load the files
+  i=1
+  #for (i in 1:length(raster_filename)) {
+  tif_organize = function(i) {
+    
+    # change number of observations depending on the product
+    if (product_type == "A1") {
+      # number of observations in this raster
+      n_obs = nlayers(brick(paste0(tmp_dir,raster_filename[i],"_",type_number[1],".tif")))  
+    } else {
+      n_obs = 1
+    }
+    
+    # load band filenames
+    j=1
+    fname_list = c()
+    for (j in 1:length(type_number)) {
+      fname_list[j] = paste0(tmp_dir,raster_filename[i],"_",type_number[j],".tif")
+    }
+    
+    # loop observations
+    obs=1
+    for (obs in 1:n_obs) {
+      
+      # save each band separately
+      fname_tif_list = c()
+      for (w in 1:length(fname_list)) {
+        # get the bands
+        fname_tif_list[w] = paste0(tempfile(),".tif")
+        gdal_translate_run = paste("gdal_translate",
+                                   "-of GTiff",
+                                   ifelse(product_type == "A1", paste0("-b ",obs), ""),
+                                   fname_list[w],
+                                   fname_tif_list[w])
+        system(gdal_translate_run)
+      }
+      
+      # create vrt
+      fname_vrt = vrt_imgs(fname_tif_list, "gdalbuildvrt", add_cmd = ifelse(product_type == "A1","-separate",""))
+      
+      # combine them back together into one geotiff
+      #tmp_output_fname = paste0(tempfile(),".tif")
+      tmp_output_fname = observations_fnames[[i]][obs]
+      gdal_translate_run = paste("gdal_translate",
+                                 "-of GTiff",
+                                 fname_vrt,
+                                 tmp_output_fname)
+      system(gdal_translate_run)
+      
+      # remove temp files
+      file.remove(fname_tif_list)
+      file.remove(fname_vrt)
+      
+      # assign result to the vector
+      #observations_fnames[length(observations_fnames)+1] = tmp_output_fname
+      
+    } # end observations
+    
+  }
+  
+  # run in parallel
+  snowrun(fun = tif_organize,
+          values = 1:length(raster_filename),
+          no_cores = no_cores,
+          var_export = c("raster_filename", "tmp_dir", "product_type", "type_number", "observations_fnames", "vrt_imgs"),
+          pack_export = "raster")
+  
+  
+  # unlist
+  observations_fnames = unlist(observations_fnames)
+  #file.exists(observations_fnames)
+  #file.remove(observations_fnames)
+  
+  # return
+  return(observations_fnames)
+}
+
 # function to filter bad values of a "x" variable
 FilterValEqualToNA = function(x, equal) {
   
@@ -759,7 +1016,7 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
     #print(img_day)
     #print(rtls_day_vec[idx])
     #i=i+1
-
+    
     # if there is no rtls available, get the closest one and log it
     if (is.na(idx)) {
       idx = which(min(abs(img_day - rtls_day_vec)) == abs(img_day - rtls_day_vec))
@@ -775,7 +1032,7 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
       band_subset = 1:7
       c(overlay(subset(BRF[[i]],band_subset), disaggregate(subset(kL[[idx]], band_subset), fact=c(dis_fac_1,dis_fac_1)), disaggregate(subset(kV[[idx]], band_subset), fact=c(dis_fac_1,dis_fac_1)), disaggregate(subset(kG[[idx]], band_subset), fact=c(dis_fac_1,dis_fac_1)), FVi, FGi = disaggregate(FG[[i]], fact=c(dis_fac_5,dis_fac_5)), fun=ff
                 ,filename = tmp_file_names[i]
-                ))
+      ))
     }
   }
   
@@ -813,13 +1070,15 @@ ConvertBRFNadir = cmpfun(ConvertBRFNadir)
 # compute quality based on occuring QA on the raster
 # https://stevemosher.wordpress.com/2012/12/05/modis-qc-bits/
 # https://lpdaac.usgs.gov/sites/default/files/public/modis/docs/MODIS_LP_QA_Tutorial-1b.pdf
+# https://lpdaac.usgs.gov/documents/1500/MCD19_User_Guide_V61.pdf
 # dataspec.doc
 ComputeQuality = function(x) {
   # interpreting all possible QA
   qa_dataframe <- data.frame(Integer_Value = x,
-                             surface = NA, #12-15
-                             reserved = NA, #10-11
-                             algoinit = NA, #9
+                             surface = NA, #13-15
+                             altitude = NA, #12
+                             brfoversnow = NA, #11
+                             aodtype = NA, #9-10
                              aotlevel = NA, #8
                              adjacency = NA, #5-7
                              landcover = NA, #3-4
@@ -833,26 +1092,29 @@ ComputeQuality = function(x) {
     # Flip the vector
     qa_as_int = qa_as_int[16:1]
     
-    # Bit12to15, surface change mask
-    qa_dataframe[i,2] = paste0(qa_as_int[1:4], collapse="")
+    # Bit13to15, surface change mask
+    qa_dataframe[i,2] = paste0(qa_as_int[1:3], collapse="")
     
-    # Bit10-11, reserved
-    qa_dataframe[i,3] = paste0(qa_as_int[5:6], collapse="")
+    # Bit12, altitude
+    qa_dataframe[i,3] = paste0(qa_as_int[4], collapse="")
     
-    # Bit9, algorithm initialize status
-    qa_dataframe[i,4] = paste0(qa_as_int[7], collapse="")
+    # Bit11, brf over snow
+    qa_dataframe[i,4] = paste0(qa_as_int[5], collapse="")
+    
+    # Bit9-10, aod type
+    qa_dataframe[i,5] = paste0(qa_as_int[6:7], collapse="")
     
     # Bit8, aot level
-    qa_dataframe[i,5] = paste0(qa_as_int[8], collapse="")
+    qa_dataframe[i,6] = paste0(qa_as_int[8], collapse="")
     
     # Bit5to7, adjacency mask
-    qa_dataframe[i,6] = paste0(qa_as_int[9:11], collapse="")
+    qa_dataframe[i,7] = paste0(qa_as_int[9:11], collapse="")
     
     # Bit3to4, land water snow/ice mask
-    qa_dataframe[i,7] = paste0(qa_as_int[12:13], collapse="")
+    qa_dataframe[i,8] = paste0(qa_as_int[12:13], collapse="")
     
     # Bit0to2, cloud mask
-    qa_dataframe[i,8] = paste0(qa_as_int[14:16], collapse="")
+    qa_dataframe[i,9] = paste0(qa_as_int[14:16], collapse="")
   }
   
   # return
@@ -863,21 +1125,25 @@ ComputeQuality = function(x) {
 FilterQuality= function(qa_dataframe) {
   #qa_dataframe = qaDF
   
-  # aotlevel5
-  filter_list = c(5, "1") # AOT is high (> 0.6) or undefined
+  # aotlevel6
+  filter_list = c(6, "1") # AOT is high (> 0.6) or undefined
   
-  # filter adjacency6
-  filter_list = rbind(filter_list,c(6, "001")) # Adjacent to cloud
-  filter_list = rbind(filter_list,c(6, "010")) # Surrounded  by more than 8 cloudy pixels
-  filter_list = rbind(filter_list,c(6, "011")) # Single cloudy pixel
+  # filter adjacency7
+  filter_list = rbind(filter_list,c(7, "001")) # Adjacent to cloud
+  filter_list = rbind(filter_list,c(7, "010")) # Surrounded  by more than 4 cloudy pixels
+  filter_list = rbind(filter_list,c(7, "011")) # Single cloudy pixel
   
-  # filter cloud8
-  filter_list = rbind(filter_list,c(8, "000")) # 000 ---  Undefined
-  filter_list = rbind(filter_list,c(8, "010")) # 010 --- Possibly Cloudy (detected by AOT filter)
-  filter_list = rbind(filter_list,c(8, "011")) # 011 --- Cloudy  (detected by cloud mask algorithm)
-  filter_list = rbind(filter_list,c(8, "101")) # 101 -- - Cloud Shadow
-  #filter_list = rbind(filter_list,c(8, "110")) # 110 --- hot spot of fire
-  filter_list = rbind(filter_list,c(8, "111")) # 111 --- Water Sediments
+  # filter landcover8
+  filter_list = rbind(filter_list,c(8, "10")) # 10--- Snow
+  filter_list = rbind(filter_list,c(8, "11")) # 11 --- Ice
+  
+  # filter cloud9
+  filter_list = rbind(filter_list,c(9, "000")) # 000 ---  Undefined
+  filter_list = rbind(filter_list,c(9, "010")) # 010 --- Possibly Cloudy (detected by AOT filter)
+  filter_list = rbind(filter_list,c(9, "011")) # 011 --- Cloudy  (detected by cloud mask algorithm)
+  filter_list = rbind(filter_list,c(9, "101")) # 101 -- - Cloud Shadow
+  #filter_list = rbind(filter_list,c(9, "110")) # 110 --- hot spot of fire
+  filter_list = rbind(filter_list,c(9, "111")) # 111 --- Water Sediments
   
   # remove filter_list from the quality data frame (qa_dataframe)
   for (i in 1:dim(filter_list)[1]) {
@@ -909,10 +1175,11 @@ CreateSingleQAMask = function(raster_file) {
     qaDFFiltered = FilterQuality(qaDF)
     
     # create the mask using the remaining QA, rest of values become NaN
-    if (dim(qaDFFiltered)[1] > 0)
+    if (dim(qaDFFiltered)[1] > 0) {
       raster_file = subs(raster_file, data.frame(id=qaDFFiltered$Integer_Value, v=rep(1,length(qaDFFiltered$Integer_Value))))
-    else
+    } else {
       raster_file[]=NaN
+    }
     
   } else {
     raster_file[]=NaN
@@ -961,7 +1228,7 @@ CreateQAMask = function(raster_brick) {
   
   # finish cluster
   stopCluster(cl)
-
+  
   # measure time
   t2 = mytoc(t1)
   
@@ -1095,16 +1362,16 @@ ReorderBrickPerBand = function(raster_brick, output_dir, tmp_dir) {
   
   # new list
   y = list()
-
+  
   # measure time
   t1 = mytic()
-    
+  
   # loop through bands
   for (j in 1:nlayers(raster_brick[[1]])) {
     # message
     print(paste0(Sys.time(), ": Re-ordering brick per band ",j," from ",nlayers(raster_brick[[1]])))
-  
-
+    
+    
     # create brick
     y[[j]] = brick()
     
@@ -1301,7 +1568,7 @@ ReprojectComposite = function(x, output_dir, tmp_dir, year, day, output_raster) 
   # South America region has Sinusoid projection, with central longitude 58W.
   # projecao lat/lon: "+init=epsg:4326 +proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
   # projecao original do maiac: "+proj=sinu +lon_0=-3323155211.758775 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
-  # projecao ajustada do maiac com longitude central da SouthAmerica -58W (sugestão Yujie Wang): "+proj=sinu +lon_0=-58 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
+  # projecao ajustada do maiac com longitude central da SouthAmerica -58W (sugest?o Yujie Wang): "+proj=sinu +lon_0=-58 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
   gdalwarp(paste0(output_dir,composite_fname,"_",year,day[length(day)],".tif"),
            dstfile = paste0(output_dir,composite_fname,"_LatLon_",year,day[length(day)],".tif"),
            t_srs = "+init=epsg:4326 +proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0",
@@ -1383,7 +1650,7 @@ CreateCompositeName = function(composite_no, product, is_qa_filter, is_ea_filter
 # function to create loop mat, filtering the start and end dates from loop_mat, depending on composite_no
 CreateLoopMat = function(day_mat, composite_no, input_dir_vec, tile_vec, manual_run) {
   ## the else part of this function is deprecated i think, using the input_dir_vec and tile_vec
-
+  
   # check if this is a manual run and create the loop_mat with the specific configuration
   if (any(manual_run != FALSE)) {
     # if its not a monthly composite, adjust values, for monthly its already ok
@@ -1491,4 +1758,168 @@ createCompDates = function(composite_no = "month", end_year = 2019) {
     value = c(paste0(2000, sprintf("%03d", x0[x0>=56])), paste0(x$Var2, x$Var1))
   }
   return(value)
+}
+
+
+# function to get dates out of the FV
+get_dates_fv = function(brf_fv) {
+  brf_fv_names = c()
+  for (i in 1:length(brf_fv)) {
+    if (substr(names(brf_fv[[i]]), 1,3) != "MCD") {
+      names(brf_fv[[i]]) = basename(brf_fv[[i]]@file@name)
+    }
+    brf_fv_names[i] = names(brf_fv[[i]])
+  }
+  brf_fv_names = substr(brf_fv_names, 14, 16)
+  return(brf_fv_names)
+}
+
+# function to get dates out of the kiso
+get_dates_kiso = function(rtls_kiso) {
+  rtls_kiso_names = c()
+  for (i in 1:length(rtls_kiso)) {
+    rtls_kiso_names[i] = basename(rtls_kiso[[i]]@file@name)
+  }
+  rtls_kiso_names = substr(rtls_kiso_names, 15, 17)
+  return(rtls_kiso_names)
+}
+
+# function to save the geotiffs of files in temporary folder, and resample fv/fg for normalization
+SaveMAIACFilesTemporary = function(r, tmp_dir, r_resample = NULL) {
+  # r = brf_fv
+  # r_resample = brf_reflectance[[1]]
+  
+  # check if we resampling
+  if (!is.null(r_resample)) {
+    # set parameters, interpolate the 5km to 1 km by nearest neighbor
+    dis_fac_5 = res(r[[1]])[1] / res(r_resample)[1]
+  } else {
+    dis_fac_5 = NULL
+  }
+  
+  # create temporary filenames
+  tmp_fname_list = c()
+  for (i in 1:length(r)) {
+    tmp_fname = paste0(tmp_dir, basename(tempfile()), ".tif")
+    tmp_fname_list[i] = tmp_fname
+  }
+  
+  # function to save the files    
+  save_geotiffs = function(i) {
+    x = r[[i]]
+    r[[i]] = disaggregate(r[[i]], fact=c(dis_fac_5,dis_fac_5)) # fac = 5 for 1km and 10 for 0.5 km
+    writeRaster(r[[i]], filename = tmp_fname_list[i], overwrite=T)
+  }
+  
+  # save files in parallel
+  snowrun(fun = save_geotiffs,
+          values = 1:length(r),
+          no_cores = no_cores,
+          var_export = c("r", "tmp_fname_list", "dis_fac_5"),
+          pack_export = "raster")
+  
+  # return filenames
+  return(tmp_fname_list)
+}
+
+# aws functions -----------------------------------------------------------
+
+# function to get the filenames of files to download based on file_list_<year>.txt inside functions_dir
+get_filenames_to_download = function(functions_dir, year) {
+  txt_fname = paste0(functions_dir, "file_list_",year,".txt")
+  if (file.exists(txt_fname)) {
+    txt = read.table(txt_fname)$V1
+    idx_ref = grep("MCD19A1", txt)
+    txt_ref = txt[idx_ref]
+    txt_brdf = txt[-idx_ref]
+    fname_brdf = substr(txt_brdf, 77, nchar(txt_brdf[1]))
+    fname_ref = substr(txt_ref, 76, nchar(txt_ref[1]))
+    fname = c(fname_brdf, fname_ref)
+  } else {
+    fname = NA
+    stop(paste0("file does not exist: ", txt_fname))
+  }
+  return(fname)
+}
+
+# function to sync S3 files 
+S3_sync = function(input_dir, output_dir) {
+  system(paste0("aws s3 sync ", input_dir, " ", output_dir))
+}
+
+# if we got files, lets download them
+S3_download_single_file = function(i) {
+  output_fname = paste0(output_dir, "/", basename(files_to_download[i]))
+  if (!file.exists(output_fname)) {
+    system(paste0("aws s3 cp ", files_to_download[i], " ", output_fname, " --profile earthdata"))
+  }
+}
+
+# function to refresh credentials from earth data
+refresh_credentials_earthdata = function() {
+  # content of earthdata.netrc file: machine urs.earthdata.nasa.gov login <YOURLOGIN> password <YOURPWD>
+  get_credentials = system("curl -b cookies.txt -c cookies.txt -L --netrc-file earthdata.netrc https://data.lpdaac.earthdatacloud.nasa.gov/s3credentials", intern=T)#[4]
+  get_credentials = jsonlite::fromJSON(get_credentials)
+  #dput(get_credentials)
+  
+  # set config
+  system(paste0("aws configure set aws_access_key_id \"",get_credentials$accessKeyId,"\" --profile earthdata"))
+  system(paste0("aws configure set aws_secret_access_key \"",get_credentials$secretAccessKey,"\" --profile earthdata"))
+  system(paste0("aws configure set aws_session_token \"",get_credentials$sessionToken,"\" --profile earthdata"))
+  system(paste0("aws configure set aws_default_region \"","us-west-2","\" --profile earthdata"))
+  
+  #
+  print("Earth Data credentials refreshed.")
+}
+
+
+
+# utilities ---------------------------------------------------------------
+
+
+
+# wrapper function around snowfall to run codes in parallel
+snowrun = function(fun, values, no_cores, var_export = NULL, pack_export = NULL, ...) {
+  # libraries need for snowfall parallel
+  library(pacman)
+  p_load(snowfall)
+  snowfall::sfInit(parallel = TRUE, cpus = no_cores) # adjust number of cores here
+  
+  # import variables or packages inside cores
+  if (!is.null(var_export)) {
+    snowfall::sfExport(list = var_export)
+  }
+  if (!is.null(pack_export)) {
+    for (i in 1:length(pack_export)) {
+      snowfall::sfLibrary(pack_export[i], character.only=TRUE)
+    }
+  }
+  
+  # run in parallel
+  system.time({snowfall::sfLapply(values, fun)})
+  snowfall::sfStop()
+  
+}
+
+# function to mosaic images
+vrt_imgs = function(file_list, gdalbuildvrt, add_cmd = NULL) {
+  
+  # write txt with fnames to mosaic
+  #txt_fname = paste0(output_dir,"/file_list_mosaic.txt")
+  txt_fname = paste0(tempfile(), ".txt")
+  sink(txt_fname)
+  #cat(paste0(getwd(), "\\", list_files), sep="\n")
+  cat(paste0(file_list), sep="\n")
+  sink()
+  
+  #
+  name_final_vrt = sub(".txt", ".vrt", txt_fname)
+  
+  # run
+  system(paste(gdalbuildvrt, ifelse(!is.null(add_cmd),add_cmd,""), "-input_file_list", txt_fname, name_final_vrt ))
+  
+  # remove txt
+  file.remove(txt_fname)
+  return(name_final_vrt)
+  
 }
