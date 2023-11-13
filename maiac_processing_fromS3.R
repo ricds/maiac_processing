@@ -232,7 +232,7 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   # remove directory from filenames, return only the "filenames".hdf
   product_fname = basename(product_fname)
   parameter_fname = basename(parameter_fname)
-
+  
   # 3) organize the data according to the number of observations per day and the available bands, the way we have one object for each observation
   brf_reflectance = LoadMAIACFilesGDALParallel(product_fname, output_dir, tmp_dir, product_res, isMCD, "A1") # 28 sec
   brf_fv = LoadMAIACFilesGDALParallel(product_fname, output_dir, tmp_dir, "Fv", isMCD, "A1")
@@ -241,28 +241,43 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   rtls_kvol = LoadMAIACFilesGDALParallel(parameter_fname, output_dir, tmp_dir, "Kvol", isMCD, "A3")
   rtls_kgeo = LoadMAIACFilesGDALParallel(parameter_fname, output_dir, tmp_dir, "Kgeo", isMCD, "A3")
   
+  # get the dates of each observation
+  brf_reflectance_dates = LoadMAIACFilesGDALParallel(product_fname, output_dir, tmp_dir, product_res, isMCD, "A1", dateOnly = TRUE)
   
-  ## TO CONTINUE HERE WITH THE QA AND PROCESSING CONSIDERING THE FILES ARE ARLEADY IN THE DISK
+  # match the RTLS to the observations
+  rtls_kiso = rtls_kiso[brf_reflectance_dates]
+  rtls_kvol = rtls_kvol[brf_reflectance_dates]
+  rtls_kgeo = rtls_kgeo[brf_reflectance_dates]
   
-  
-  ## do QA
-  
-  ## prepare the FV and FG
-  
-  ## normalization
-  
+  # resample brf_fv and brf_fg
+  brf_fv_resampled = resample_f(brf_fv, brf_reflectance)
+  brf_fg_resampled = resample_f(brf_fg, brf_reflectance)
+  file.remove(brf_fv)
+  file.remove(brf_fg)
+  brf_fv = brf_fv_resampled
+  brf_fg = brf_fg_resampled
+
   # 4) load QA layers, create a mask for each date excluding bad pixels (possibly cloud, adjacent cloud, cloud shadows, etc.) and apply the mask
   # remove pixels such as: possibly cloud, cloud adjacent, cloud shadow, etc.
   if (is_qa_filter) {
-    qa_brick = LoadMAIACFiles(product_fname, output_dir, tmp_dir, "Status_QA", isMCD)
+    # filtering
+    qa_brick = LoadMAIACFilesGDALParallel(product_fname, output_dir, tmp_dir, "Status_QA", isMCD, "A1")
     qa_mask = CreateQAMask(qa_brick)
-    brf_reflectance = ApplyMaskOnBrick(brf_reflectance, qa_mask)
+    brf_reflectance_filtered = ApplyMaskOnBrick(brf_reflectance, qa_mask)
+    
+    # clean up
+    file.remove(qa_mask)
+    file.remove(qa_brick)
+    file.remove(brf_reflectance)
     rm(list = c("qa_brick","qa_mask"))
+    
+    # rename
+    brf_reflectance = brf_reflectance_filtered
   }
   
   # get the DOY of BRF and RTLS files
-  brf_doy = get_dates_fv(brf_fv)
-  brf_rtls = get_dates_kiso(rtls_kiso)
+  #brf_doy = get_dates_fv(brf_fv)
+  #brf_rtls = get_dates_kiso(rtls_kiso)
   
   # # save geotiff files to temporary folder so we can run the normalization using gdal, return only the filenames
   # # this function also resamples the fv and fg to the same grid as the brf_reflectance
@@ -272,9 +287,12 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   # rtls_kiso = SaveMAIACFilesTemporary(rtls_kiso, tmp_dir)
   # rtls_kvol = SaveMAIACFilesTemporary(rtls_kvol, tmp_dir)
   # rtls_kgeo = SaveMAIACFilesTemporary(rtls_kgeo, tmp_dir)
-
+  
+  ## STOPPED HERE, NEXT STEP IS MAKING THE CONVERT WITH GDAL WORK
+  
   # 6) (parallel computing) apply brf normalization to nadir for each date using the respective RTLS parameters or nearest RTLS file, and the eq. from MAIAC documentation: (BRFn = BRF * (kL - 0.04578*kV - 1.10003*kG)/( kL + FV*kV + FG*kG))
-  nadir_brf_reflectance = ConvertBRFNadir(brf_reflectance, brf_fv, brf_fg, rtls_kiso, rtls_kvol, rtls_kgeo, tile, year, output_dir, no_cores, log_fname, view_geometry, isMCD, product_res, tmp_dir)
+  #nadir_brf_reflectance = ConvertBRFNadir(brf_reflectance, brf_fv, brf_fg, rtls_kiso, rtls_kvol, rtls_kgeo, tile, year, output_dir, no_cores, log_fname, view_geometry, isMCD, product_res, tmp_dir)
+  nadir_brf_reflectance = ConvertBRFNadirGDAL(brf_reflectance, brf_fv, brf_fg, rtls_kiso, rtls_kvol, rtls_kgeo, tile, year, output_dir, no_cores, log_fname, view_geometry, isMCD, product_res, tmp_dir)
   rm(list = c("brf_reflectance", "brf_fv", "brf_fg", "rtls_kiso", "rtls_kvol", "rtls_kgeo"))
   
   # test if nadir_brf_reflectance is empty, and return nan tile if it is true

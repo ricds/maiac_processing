@@ -713,8 +713,8 @@ LoadMAIACFilesGDAL = function(raster_filename, output_dir, tmp_dir, type, isMCD,
 }
 
 # function to load files of a specific type from the temporary output folder "output_dir"/tmp
-LoadMAIACFilesGDALParallel = function(raster_filename, output_dir, tmp_dir, type, isMCD, product_type) {
-
+LoadMAIACFilesGDALParallel = function(raster_filename, output_dir, tmp_dir, type, isMCD, product_type, dateOnly=FALSE) {
+  
   # adjust the 'type' variable for the brf according to resolution and product
   if (is.numeric(type)) {
     product_res = type
@@ -783,7 +783,16 @@ LoadMAIACFilesGDALParallel = function(raster_filename, output_dir, tmp_dir, type
       }
     }
   } # end filename creation
-
+  
+  # get date
+  if (dateOnly) {
+    date_vec = c()
+    for (k in 1:length(observations_fnames)) {
+      tmp = length(observations_fnames[[k]])
+      date_vec = c(date_vec, rep(k, tmp))
+    }
+    return(date_vec)
+  }
   
   # loop though files and load the files
   i=1
@@ -1064,8 +1073,165 @@ ConvertBRFNadir = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_c
   # return
   return(BRFn)
 }
-
 ConvertBRFNadir = cmpfun(ConvertBRFNadir)
+
+# function to convert brf to brfn
+# to do: arquivo vira float depois da covnersao, transformar em outro formato? (ex. int2s)
+# transf para int2s parece que ferra os valores
+# band values are calculated ok, tested calculating one band separatedely and compared to the batch convert
+ConvertBRFNadirGDAL = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, no_cores, log_fname, view_geometry, isMCD, product_res, tmp_dir) {
+  # BRF = brf_reflectance  # (12 bandas por data, 1km)
+  # FV = brf_fv  # (1 por data, 1km)
+  # FG = brf_fg  # (1 por data, 1km)
+  # kL = rtls_kiso  # (8 bandas, 1km)
+  # kV = rtls_kvol  # (8 bandas, 1km)
+  # kG = rtls_kgeo  # (8 bandas, 1km)
+  
+  # message
+  print(paste0(Sys.time(), ": Normalizing brf in parallel..."))
+  
+  # measure time
+  t1 = mytic()
+  
+  # fix FV names
+  for (i in 1:length(FV)) {
+    if (substr(names(FV[[i]]), 1,3) != "MCD") {
+      names(FV[[i]]) = basename(FV[[i]]@file@name)
+    }
+  }
+  
+  # define RTLS day name location in the string
+  if (isMCD) {
+    rtls_day_str_begin = 14
+    rtls_day_str_end = 16
+  } else {
+    rtls_day_str_begin = 22
+    rtls_day_str_end = 24
+  }
+  
+  # retrieve RTLS day
+  rtls_day_vec = vector()
+  for (i in 1:length(kL)) {
+    rtls_day_vec[i] = as.numeric(substr(names(kL[[i]])[[1]],rtls_day_str_begin+1,rtls_day_str_end+1))
+  }
+  
+  # function to normalize
+  ff_nadir = function(BRFi, kLi, kVi, kGi, FVi, FGi) {
+    #return(BRFi * (kLi - (0.04578*kVi) - (1.10003*kGi))/(kLi + (FVi*kVi) + (FGi*kGi)))
+    a = BRFi * {kLi - {0.04578*kVi} - {1.10003*kGi}}/{kLi + {FVi*kVi} + {FGi*kGi}}
+    a[a<0 | a>1]=NA
+    a
+  }
+  
+  # function to normalize backscat
+  ff_backscat = function(BRFi, kLi, kVi, kGi, FVi, FGi) {
+    # For AZ=180, kernels are: backward
+    # Fg = 0.017440045;    Fv=0.22930469;
+    a = BRFi * {kLi + {0.22930469*kVi} + {0.017440045*kGi}}/{kLi + {FVi*kVi} + {FGi*kGi}}
+    a[a<0 | a>1]=NA
+    a
+  }
+  
+  # function to normalize forwardscat
+  ff_forwardscat = function(BRFi, kLi, kVi, kGi, FVi, FGi) {
+    #For AZ=0, kernels are: forward
+    #Fg = -1.6218740;    Fv=-0.12029795;
+    a = BRFi * {kLi - {0.12029795*kVi} - {1.6218740*kGi}}/{kLi + {FVi*kVi} + {FGi*kGi}}
+    a[a<0 | a>1]=NA
+    a
+  }
+  
+  # choose function
+  if (view_geometry == "nadir")
+    ff = cmpfun(ff_nadir)
+  if (view_geometry == "backscat")
+    ff = cmpfun(ff_backscat)
+  if (view_geometry == "forwardscat")
+    ff = cmpfun(ff_forwardscat)
+  
+  # Initiate cluster
+  #cl = parallel::makeCluster(no_cores, outfile=log_fname)
+  cl = parallel::makeCluster(min(length(BRF), no_cores))
+  registerDoParallel(cl)
+  objects_to_export = c("BRF", "FV", "FG", "kL", "kV", "kG", "tile", "year", "rtls_day_vec", "ff", "FilterValOutRangeToNA", "product_res")
+  
+  # for each date
+  tmp_file_names = c()
+  for (i in 1:length(BRF)) tmp_file_names[i] = paste0(tmp_dir, basename(tempfile()))
+  BRFn = foreach(i = 1:length(BRF), .packages=c("raster"), .export=objects_to_export, .errorhandling="remove", .inorder = FALSE) %dopar% {
+    # message
+    print(paste0(Sys.time(), ": Normalizing brf iteration ",i," from ",length(BRF)))
+    
+    # set parameters, interpolate the 5km to 1 km by nearest neighbor
+    dis_fac_5 = 5000 / product_res
+    FVi = disaggregate(FV[[i]], fact=c(dis_fac_5,dis_fac_5)) # fac = 5 for 1km and 10 for 0.5 km
+    
+    # check if FVi is available
+    if (is.na(minValue(FVi)) & is.na(maxValue(FVi)))
+      return(0)
+    
+    # identify which tile is the given i data and set the parameters to the tile
+    img_day = as.numeric(substr(names(FVi),rtls_day_str_begin,rtls_day_str_end))
+    
+    # get rtls days that are lower than image day, and that are near the image day until 8 days (the aggreagated rtls), get always the lowest rlts day (index 1)
+    if (isMCD) {
+      #idx = which(img_day >= rtls_day_vec & abs(rtls_day_vec - img_day) < 8)[1] # v6
+      idx = which(img_day == rtls_day_vec) # v6.1
+    } else {
+      idx = which(img_day <= rtls_day_vec & abs(rtls_day_vec - img_day) <= 8)[1]
+    }
+    #print(idx)
+    #print(img_day)
+    #print(rtls_day_vec[idx])
+    #i=i+1
+    
+    # if there is no rtls available, get the closest one and log it
+    if (is.na(idx)) {
+      idx = which(min(abs(img_day - rtls_day_vec)) == abs(img_day - rtls_day_vec))
+      line = paste0("Tile: ", tile,", Year: ", year,", Image day: ", img_day,", RTLS day: ", rtls_day_vec[idx])
+      write(line,file=paste0(output_dir, "processed_closest_rtls.txt"), append=TRUE)
+    }
+    
+    # calculate brf nadir
+    if (product_res == 1000) {
+      c(overlay(subset(BRF[[i]],1:8), kL[[idx]], kV[[idx]], kG[[idx]], FVi, FGi = disaggregate(FG[[i]], fact=c(dis_fac_5,dis_fac_5)), fun=ff))
+    } else {
+      dis_fac_1 = 1000 / product_res
+      band_subset = 1:7
+      c(overlay(subset(BRF[[i]],band_subset), disaggregate(subset(kL[[idx]], band_subset), fact=c(dis_fac_1,dis_fac_1)), disaggregate(subset(kV[[idx]], band_subset), fact=c(dis_fac_1,dis_fac_1)), disaggregate(subset(kG[[idx]], band_subset), fact=c(dis_fac_1,dis_fac_1)), FVi, FGi = disaggregate(FG[[i]], fact=c(dis_fac_5,dis_fac_5)), fun=ff
+                ,filename = tmp_file_names[i]
+      ))
+    }
+  }
+  
+  # finish cluster
+  stopCluster(cl)
+  
+  # unlist the results to get a correct output
+  BRFn = unlist(BRFn)
+  
+  # remove the layers without data from BRFn
+  idx_vec = vector()
+  for (i in 1:length(BRFn)) {
+    if (typeof(BRFn[[i]])=="double") {
+      idx_vec = c(idx_vec,i)
+    } else {
+      if (all(is.na(minValue(BRFn[[i]]))) & all(is.na(maxValue(BRFn[[i]]))))
+        idx_vec = c(idx_vec,i)
+    }
+  }
+  if (length(idx_vec)>0)
+    BRFn = BRFn[-c(idx_vec)]
+  
+  # measure time
+  t2 = mytoc(t1)
+  
+  # message
+  print(paste0(Sys.time(), ": Normalizing brf in parallel finished in ", t2))
+  
+  # return
+  return(BRFn)
+}
 
 # compute quality based on occuring QA on the raster
 # https://stevemosher.wordpress.com/2012/12/05/modis-qc-bits/
@@ -1185,23 +1351,57 @@ CreateSingleQAMask = function(raster_file) {
     raster_file[]=NaN
   }
   
+  # write the QA to a file
+  tmp_file = paste0(tempfile(),".tif")
+  writeRaster(raster_file, filename = tmp_file, overwrite=T)
+  
   # return
-  return(raster_file)
+  #return(raster_file)
+  return(tmp_file)
+}
+
+# function to create a single qa mask based on a qa raster
+CreateSingleQAMask_wrapper = function(i) {
+  #x = qaBrick[[5]]
+  
+  # load file
+  raster_file = raster(raster_brick[i])
+  output_file_i = output_file[i]
+  
+  # get unique qa values
+  uniqueQA = as.numeric(unique(raster_file))
+  
+  # remove nan's
+  uniqueQA = uniqueQA[!is.na(uniqueQA)]
+  
+  if (length(uniqueQA) > 0) {
+    # compute qa dataframe with all possible quality combinations in the image
+    qaDF = ComputeQuality(uniqueQA)
+    
+    # filter the qa dataframe with a set of determined rules excluding the bad ones
+    qaDFFiltered = FilterQuality(qaDF)
+    
+    # create the mask using the remaining QA, rest of values become NaN
+    if (dim(qaDFFiltered)[1] > 0) {
+      raster_file = subs(raster_file, data.frame(id=qaDFFiltered$Integer_Value, v=rep(1,length(qaDFFiltered$Integer_Value))))
+    } else {
+      raster_file[]=NaN
+    }
+    
+  } else {
+    raster_file[]=NaN
+  }
+  
+  # write the QA to a file
+  writeRaster(raster_file, filename = output_file_i, overwrite=T, datatype="INT2S")
+  
+  # return
+  #return(raster_file)
+  return(output_file_i)
 }
 
 # function to create a qa mask based on a qa raster brick "raster_brick"
 CreateQAMask = function(raster_brick) {
-  # # initiate list
-  # mask_brick = list()
-  # 
-  # # loop through the brick
-  # for (i in 1:length(raster_brick)) {
-  #   # message
-  #   print(paste0(Sys.time(), ": Creating qa mask file ",i," from ",length(raster_brick)))
-  #   
-  #   # add to the brick
-  #   mask_brick[[i]] = CreateSingleQAMask(raster_brick[[i]])
-  # }
   
   # message
   print(paste0(Sys.time(), ": Extracting QA..."))
@@ -1209,25 +1409,18 @@ CreateQAMask = function(raster_brick) {
   # measure time
   t1 = mytic()
   
-  # Initiate cluster
-  #cl = parallel::makeCluster(no_cores, outfile=log_fname)
-  cl = parallel::makeCluster(min(length(raster_brick), no_cores))
-  registerDoParallel(cl)
-  objects_to_export = c("raster_brick", "CreateSingleQAMask", "ComputeQuality", "FilterQuality")
-  
-  # for each date
-  mask_brick = foreach(i = 1:length(raster_brick), .packages=c("raster"), .export=objects_to_export, .errorhandling="remove", .inorder = TRUE) %dopar% {
-    
-    # message
-    print(paste0(Sys.time(), ": Creating qa mask file ",i," from ",length(raster_brick)))
-    
-    # add to the brick
-    CreateSingleQAMask(raster_brick[[i]])
-    
+  # create output filenames
+  output_file=c()
+  for (i in 1:length(raster_brick)) {
+    output_file[i] = paste0(tempfile(),".tif")
   }
   
-  # finish cluster
-  stopCluster(cl)
+  # save files in parallel
+  snowrun(fun = CreateSingleQAMask_wrapper,
+          values = 1:length(raster_brick),
+          no_cores = no_cores,
+          var_export = c("raster_brick", "CreateSingleQAMask", "ComputeQuality", "FilterQuality", "output_file"),
+          pack_export = "raster")
   
   # measure time
   t2 = mytoc(t1)
@@ -1236,22 +1429,11 @@ CreateQAMask = function(raster_brick) {
   print(paste0(Sys.time(), ": Extracting QA finished in ", t2))
   
   # return
-  return(mask_brick)
+  return(output_file)
 }
 
 # function to apply the QA mask over a raster brick of the same size
 ApplyMaskOnBrick = function(raster_brick, mask_brick) {
-  # # initiate list
-  # masked_raster_brick = list()
-  # 
-  # # loop throught the "raster_brick" brick
-  # for (i in 1:length(raster_brick)) {
-  #   # message
-  #   print(paste0(Sys.time(), ": Applying mask in file ",i," from ",length(raster_brick)))
-  #   
-  #   # apply mask
-  #   masked_raster_brick[[i]] = mask(raster_brick[[i]], mask_brick[[i]])
-  # }
   
   # message
   print(paste0(Sys.time(), ": Applying mask..."))
@@ -1259,23 +1441,59 @@ ApplyMaskOnBrick = function(raster_brick, mask_brick) {
   # measure time
   t1 = mytic()
   
-  # Initiate cluster
-  #cl = parallel::makeCluster(no_cores, outfile=log_fname)
-  cl = parallel::makeCluster(min(length(raster_brick), no_cores))
-  registerDoParallel(cl)
-  objects_to_export = c("raster_brick", "mask_brick")
+  # # Initiate cluster
+  # #cl = parallel::makeCluster(no_cores, outfile=log_fname)
+  # cl = parallel::makeCluster(min(length(raster_brick), no_cores))
+  # registerDoParallel(cl)
+  # objects_to_export = c("raster_brick", "mask_brick")
+  # 
+  # # for each raster
+  # masked_raster_brick = foreach(i = 1:length(raster_brick), .packages=c("raster"), .export=objects_to_export, .errorhandling="remove", .inorder = TRUE) %dopar% {
+  #   # message
+  #   print(paste0(Sys.time(), ": Applying mask in file ",i," from ",length(raster_brick)))
+  #   
+  #   # apply mask
+  #   mask(raster_brick[[i]], mask_brick[[i]])
+  # }
+  # 
+  # # finish cluster
+  # stopCluster(cl)
   
-  # for each raster
-  masked_raster_brick = foreach(i = 1:length(raster_brick), .packages=c("raster"), .export=objects_to_export, .errorhandling="remove", .inorder = TRUE) %dopar% {
-    # message
-    print(paste0(Sys.time(), ": Applying mask in file ",i," from ",length(raster_brick)))
-    
-    # apply mask
-    mask(raster_brick[[i]], mask_brick[[i]])
+  # create output filenames
+  output_file=c()
+  for (i in 1:length(raster_brick)) {
+    output_file[i] = paste0(tempfile(),".tif")
   }
   
-  # finish cluster
-  stopCluster(cl)
+  # function to mask the data
+  mask_brf = function(i) {
+    #mask(raster_brick[[i]], mask_brick[[i]])
+    
+    gdal_calc_run = paste("gdal_calc.py",
+                          "--calc \" (B == 1)*A \" ",
+                          "-A", raster_brick[i],
+                          "-B", mask_brick[i],
+                          "--allBands A",
+                          "--format GTiff",
+                          "--outfile", output_file[i])
+    system(gdal_calc_run)
+    
+    
+    if (FALSE) {
+      plot(raster(raster_brick[i]), main="img")
+      plot(raster(mask_brick[i]), main="mask")
+      plot(raster(output_file[i]), main="img masked")
+      click(raster(output_file[i]))
+      gdalinfo(output_file[i])
+    }
+  }
+  
+  # save files in parallel
+  snowrun(fun = mask_brf,
+          values = 1:length(raster_brick),
+          no_cores = no_cores,
+          var_export = c("raster_brick", "mask_brick", "output_file"),
+          pack_export = NULL)
   
   # measure time
   t2 = mytoc(t1)
@@ -1284,7 +1502,8 @@ ApplyMaskOnBrick = function(raster_brick, mask_brick) {
   print(paste0(Sys.time(), ": Applying mask finished in ", t2))
   
   # return
-  return(masked_raster_brick)
+  #return(masked_raster_brick)
+  return(output_file)
 }
 
 # function to create extreme azimutal angle >80 mask and apply to BRF
@@ -1820,6 +2039,50 @@ SaveMAIACFilesTemporary = function(r, tmp_dir, r_resample = NULL) {
   
   # return filenames
   return(tmp_fname_list)
+}
+
+# function to resample the FV and FG to match the brf
+resample_f = function(f, brf) {
+  # f = brf_fv
+  # brf = brf_reflectance
+  
+  # create output filenames
+  f2=c()
+  for (i in 1:length(f)) {
+    f2[i] = paste0(tempfile(),".tif")
+  }
+  
+  
+  #
+  resample_wrapper = function(i) {
+    # gdal_translate to change data format to Float32
+    gdal_translate_run = paste("gdal_translate",
+                               "-ot Float32",
+                               brf[i],
+                               f2[i]
+    )
+    system(gdal_translate_run)
+    
+    # resample
+    gdalwarp_run = paste("gdalwarp",
+                         "-wm", 20*1024*1024*1024,
+                         #"-r bilinear",
+                         f[i],
+                         f2[i]
+    )
+    system(gdalwarp_run)
+  }
+  
+  # save files in parallel
+  snowrun(fun = resample_wrapper,
+          values = 1:length(f),
+          no_cores = no_cores,
+          var_export = c("f", "brf", "f2"),
+          pack_export = NULL)
+  
+  # return
+  return(f2)
+  
 }
 
 # aws functions -----------------------------------------------------------
