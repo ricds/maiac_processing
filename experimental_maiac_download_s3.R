@@ -10,7 +10,7 @@ library(jsonlite)
 #   'ghrcdaac': 'https://data.ghrc.earthdata.nasa.gov/s3credentials'
 # }
 # content of earthdata.netrc file: machine urs.earthdata.nasa.gov login <YOURLOGIN> password <YOURPWD>
-get_credentials = system("curl -b cookies.txt -c cookies.txt -L --netrc-file earthdata.netrc https://data.lpdaac.earthdatacloud.nasa.gov/s3credentials", intern=T)[4]
+get_credentials = system("curl -b cookies.txt -c cookies.txt -L --netrc-file earthdata.netrc https://data.lpdaac.earthdatacloud.nasa.gov/s3credentials", intern=T)#[4]
 get_credentials = fromJSON(get_credentials)
 dput(get_credentials)
 

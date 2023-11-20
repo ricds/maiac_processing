@@ -714,7 +714,7 @@ LoadMAIACFilesGDAL = function(raster_filename, output_dir, tmp_dir, type, isMCD,
 
 # function to load files of a specific type from the temporary output folder "output_dir"/tmp
 LoadMAIACFilesGDALParallel = function(raster_filename, output_dir, tmp_dir, type, isMCD, product_type, dateOnly=FALSE) {
-  
+
   # adjust the 'type' variable for the brf according to resolution and product
   if (is.numeric(type)) {
     product_res = type
@@ -866,6 +866,7 @@ LoadMAIACFilesGDALParallel = function(raster_filename, output_dir, tmp_dir, type
   observations_fnames = unlist(observations_fnames)
   #file.exists(observations_fnames)
   #file.remove(observations_fnames)
+  
   
   # return
   return(observations_fnames)
@@ -1093,135 +1094,81 @@ ConvertBRFNadirGDAL = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, 
   # measure time
   t1 = mytic()
   
-  # fix FV names
-  for (i in 1:length(FV)) {
-    if (substr(names(FV[[i]]), 1,3) != "MCD") {
-      names(FV[[i]]) = basename(FV[[i]]@file@name)
-    }
-  }
-  
-  # define RTLS day name location in the string
-  if (isMCD) {
-    rtls_day_str_begin = 14
-    rtls_day_str_end = 16
-  } else {
-    rtls_day_str_begin = 22
-    rtls_day_str_end = 24
-  }
-  
-  # retrieve RTLS day
-  rtls_day_vec = vector()
-  for (i in 1:length(kL)) {
-    rtls_day_vec[i] = as.numeric(substr(names(kL[[i]])[[1]],rtls_day_str_begin+1,rtls_day_str_end+1))
-  }
-  
-  # function to normalize
-  ff_nadir = function(BRFi, kLi, kVi, kGi, FVi, FGi) {
-    #return(BRFi * (kLi - (0.04578*kVi) - (1.10003*kGi))/(kLi + (FVi*kVi) + (FGi*kGi)))
-    a = BRFi * {kLi - {0.04578*kVi} - {1.10003*kGi}}/{kLi + {FVi*kVi} + {FGi*kGi}}
-    a[a<0 | a>1]=NA
-    a
-  }
-  
-  # function to normalize backscat
-  ff_backscat = function(BRFi, kLi, kVi, kGi, FVi, FGi) {
-    # For AZ=180, kernels are: backward
-    # Fg = 0.017440045;    Fv=0.22930469;
-    a = BRFi * {kLi + {0.22930469*kVi} + {0.017440045*kGi}}/{kLi + {FVi*kVi} + {FGi*kGi}}
-    a[a<0 | a>1]=NA
-    a
-  }
-  
-  # function to normalize forwardscat
-  ff_forwardscat = function(BRFi, kLi, kVi, kGi, FVi, FGi) {
-    #For AZ=0, kernels are: forward
-    #Fg = -1.6218740;    Fv=-0.12029795;
-    a = BRFi * {kLi - {0.12029795*kVi} - {1.6218740*kGi}}/{kLi + {FVi*kVi} + {FGi*kGi}}
-    a[a<0 | a>1]=NA
-    a
+  # create output filenames
+  output_file1=c()
+  output_file2=c()
+  for (i in 1:length(BRF)) {
+    output_file1[i] = paste0(tempfile(),".tif")
+    output_file2[i] = paste0(tempfile(),".tif")
   }
   
   # choose function
-  if (view_geometry == "nadir")
-    ff = cmpfun(ff_nadir)
-  if (view_geometry == "backscat")
-    ff = cmpfun(ff_backscat)
-  if (view_geometry == "forwardscat")
-    ff = cmpfun(ff_forwardscat)
-  
-  # Initiate cluster
-  #cl = parallel::makeCluster(no_cores, outfile=log_fname)
-  cl = parallel::makeCluster(min(length(BRF), no_cores))
-  registerDoParallel(cl)
-  objects_to_export = c("BRF", "FV", "FG", "kL", "kV", "kG", "tile", "year", "rtls_day_vec", "ff", "FilterValOutRangeToNA", "product_res")
-  
-  # for each date
-  tmp_file_names = c()
-  for (i in 1:length(BRF)) tmp_file_names[i] = paste0(tmp_dir, basename(tempfile()))
-  BRFn = foreach(i = 1:length(BRF), .packages=c("raster"), .export=objects_to_export, .errorhandling="remove", .inorder = FALSE) %dopar% {
-    # message
-    print(paste0(Sys.time(), ": Normalizing brf iteration ",i," from ",length(BRF)))
-    
-    # set parameters, interpolate the 5km to 1 km by nearest neighbor
-    dis_fac_5 = 5000 / product_res
-    FVi = disaggregate(FV[[i]], fact=c(dis_fac_5,dis_fac_5)) # fac = 5 for 1km and 10 for 0.5 km
-    
-    # check if FVi is available
-    if (is.na(minValue(FVi)) & is.na(maxValue(FVi)))
-      return(0)
-    
-    # identify which tile is the given i data and set the parameters to the tile
-    img_day = as.numeric(substr(names(FVi),rtls_day_str_begin,rtls_day_str_end))
-    
-    # get rtls days that are lower than image day, and that are near the image day until 8 days (the aggreagated rtls), get always the lowest rlts day (index 1)
-    if (isMCD) {
-      #idx = which(img_day >= rtls_day_vec & abs(rtls_day_vec - img_day) < 8)[1] # v6
-      idx = which(img_day == rtls_day_vec) # v6.1
-    } else {
-      idx = which(img_day <= rtls_day_vec & abs(rtls_day_vec - img_day) <= 8)[1]
-    }
-    #print(idx)
-    #print(img_day)
-    #print(rtls_day_vec[idx])
-    #i=i+1
-    
-    # if there is no rtls available, get the closest one and log it
-    if (is.na(idx)) {
-      idx = which(min(abs(img_day - rtls_day_vec)) == abs(img_day - rtls_day_vec))
-      line = paste0("Tile: ", tile,", Year: ", year,", Image day: ", img_day,", RTLS day: ", rtls_day_vec[idx])
-      write(line,file=paste0(output_dir, "processed_closest_rtls.txt"), append=TRUE)
-    }
-    
-    # calculate brf nadir
-    if (product_res == 1000) {
-      c(overlay(subset(BRF[[i]],1:8), kL[[idx]], kV[[idx]], kG[[idx]], FVi, FGi = disaggregate(FG[[i]], fact=c(dis_fac_5,dis_fac_5)), fun=ff))
-    } else {
-      dis_fac_1 = 1000 / product_res
-      band_subset = 1:7
-      c(overlay(subset(BRF[[i]],band_subset), disaggregate(subset(kL[[idx]], band_subset), fact=c(dis_fac_1,dis_fac_1)), disaggregate(subset(kV[[idx]], band_subset), fact=c(dis_fac_1,dis_fac_1)), disaggregate(subset(kG[[idx]], band_subset), fact=c(dis_fac_1,dis_fac_1)), FVi, FGi = disaggregate(FG[[i]], fact=c(dis_fac_5,dis_fac_5)), fun=ff
-                ,filename = tmp_file_names[i]
-      ))
-    }
+  if (view_geometry == "nadir") {
+    coeff_Fv = -0.0220060255
+    coeff_Fg = -1.10681915
+  }
+  if (view_geometry == "backscat") {
+    coeff_Fv = 0.361657202
+    coeff_Fg = 0.0174400453
+  }
+  if (view_geometry == "forwardscat") {
+    coeff_Fv = -0.108056836
+    coeff_Fg = -1.62187397
   }
   
-  # finish cluster
-  stopCluster(cl)
-  
-  # unlist the results to get a correct output
-  BRFn = unlist(BRFn)
-  
-  # remove the layers without data from BRFn
-  idx_vec = vector()
-  for (i in 1:length(BRFn)) {
-    if (typeof(BRFn[[i]])=="double") {
-      idx_vec = c(idx_vec,i)
-    } else {
-      if (all(is.na(minValue(BRFn[[i]]))) & all(is.na(maxValue(BRFn[[i]]))))
-        idx_vec = c(idx_vec,i)
-    }
+  # function to wrap parallel normalization
+  normalization_wrapper = function(i) {
+    
+    # normalize
+    gdal_calc_run = paste("gdal_calc.py",
+                          paste0("--calc \" A * (D + (", coeff_Fv, "*E) + (", coeff_Fg,"*F))/(D + (B*E) + (C*F)) \" "),
+                          "-A", BRF[i],
+                          "-B", FV[i],
+                          "-C", FG[i],
+                          "-D", kL[i],
+                          "-E", kV[i],
+                          "-F", kG[i],
+                          "--allBands A",
+                          "--format GTiff",
+                          #"--hideNoData",
+                          "--type UInt16",
+                          "--overwrite",
+                          "--outfile", output_file1[i])
+    system(gdal_calc_run)
+    
+    # filter data in the correct range, 0 to 10000
+    gdal_calc_run = paste("gdal_calc.py",
+                          paste0("--calc \" logical_and(A>=0, A<=10000)*A \" "),
+                          "-A", output_file1[i],
+                          "--allBands A",
+                          "--format GTiff",
+                          "--overwrite",
+                          "--outfile", output_file2[i])
+    system(gdal_calc_run)
+    
+    # remove temp filename
+    file.remove(output_file1[i])
+    
   }
-  if (length(idx_vec)>0)
-    BRFn = BRFn[-c(idx_vec)]
+  
+  # debugging
+  if (FALSE) {
+    r = stack(output_file1[i])
+    r
+    plot(r[[2]])
+    click(r)
+    r = stack(output_file2[i])
+    r
+    plot(r[[2]])
+    click(r)
+  }
+  
+  # save files in parallel
+  snowrun(fun = normalization_wrapper,
+          values = 1:length(BRF),
+          no_cores = no_cores,
+          var_export = c("BRF", "FV", "FG", "kL", "kV", "kG", "coeff_Fv", "coeff_Fg", "output_file1", "output_file2"),
+          pack_export = NULL)
   
   # measure time
   t2 = mytoc(t1)
@@ -1230,7 +1177,7 @@ ConvertBRFNadirGDAL = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, 
   print(paste0(Sys.time(), ": Normalizing brf in parallel finished in ", t2))
   
   # return
-  return(BRFn)
+  return(output_file2)
 }
 
 # compute quality based on occuring QA on the raster
@@ -2085,6 +2032,324 @@ resample_f = function(f, brf) {
   
 }
 
+# function to reorder bricks per band to calculate median
+ReorderBrickPerBandGDAL = function(nadir_brf_reflectance) {
+  
+  # message
+  print(paste0(Sys.time(), ": Reordering observations by band..."))
+  
+  # measure time
+  t1 = mytic()
+  
+  # create output filenames
+  n_bands = nlayers(stack(nadir_brf_reflectance[1]))
+  output_list=list()
+  for (i in 1:n_bands) {
+    output_list[[i]] = vector("character", length(nadir_brf_reflectance))
+    for (j in 1:length(nadir_brf_reflectance)) {
+      output_list[[i]][j] = paste0(tempfile(),".tif")
+    }
+  }
+  
+  # loop through n_bands
+  i=1
+  tif_organize = function(i) {
+    
+    # loop observations
+    j=1
+    for (j in 1:length(nadir_brf_reflectance)) {
+      
+      # get the observation j for band i
+      gdal_translate_run = paste("gdal_translate",
+                                 "-of GTiff",
+                                 paste0("-b ", i),
+                                 nadir_brf_reflectance[j],
+                                 output_list[[i]][j])
+      system(gdal_translate_run)
+      
+    } # end observations
+    
+  }
+  
+  # run in parallel
+  snowrun(fun = tif_organize,
+          values = 1:n_bands,
+          no_cores = no_cores,
+          var_export = c("nadir_brf_reflectance", "output_list"),
+          pack_export = NULL)
+  
+  # measure time
+  t2 = mytoc(t1)
+  
+  # message
+  print(paste0(Sys.time(), ": Reordering finished in ", t2))
+  
+  # return 
+  return(output_list)
+  
+}
+
+# function to calculate median using gdal functions
+CalcMedianBRFGDAL = function(output_list) {
+  
+  # message
+  print(paste0(Sys.time(), ": Calculating median..."))
+  
+  # measure time
+  t1 = mytic()
+  
+  # create output filenames
+  output_file1=c()
+  output_file2=c()
+  for (i in 1:length(output_list)) {
+    output_file1[i] = paste0(tempfile(),".tif")
+    output_file2[i] = paste0(tempfile(),".tif")
+  }
+  
+  # wrapper for normalization in parallel
+  i=1
+  normalize_wrapper = function(i) {
+    
+    # create a vrt with all the observations for a given band
+    output_vrt = vrt_imgs(output_list[[i]], "gdalbuildvrt", add_cmd = "-separate")
+    
+    # calculate median using gdal_summarize - https://github.com/mstrimas/gdal-summarize - https://strimas.com/post/raster-summarization-in-python/
+    gdal_summarize_run = paste("python3 gdal-summarize.py",
+                               "--function", func,
+                               "--overwrite",
+                               output_vrt,
+                               "--outfile", output_file1[i])
+    system(gdal_summarize_run)
+    
+    # convert back to UInt16 and assign nodata to 65535
+    gdal_translate_run = paste("gdal_translate",
+                               "-of GTiff",
+                               "-ot UInt16",
+                               "-a_nodata 65535",
+                               "-co COMPRESS=DEFLATE",
+                               output_file1[i],
+                               output_file2[i])
+    system(gdal_translate_run)
+    
+    # remove temp files
+    file.remove(output_vrt)
+    file.remove(output_file1[i])
+    
+  }
+  
+  # run in parallel
+  func = "median"
+  snowrun(fun = normalize_wrapper,
+          values = 1:length(output_list),
+          no_cores = no_cores,
+          var_export = c("output_list", "output_file1", "output_file2", "vrt_imgs", "func"),
+          pack_export = NULL)
+  
+  # # wrapper to count how many valid observations we have for each pixel
+  # i=1
+  # count_observations_wrapper = function(i) {
+  #   
+  #   # create tmp rasters
+  #   tmp_file=c()
+  #   for (j in 1:length(output_list[[i]])) {
+  #     tmp_file[j] = paste0(tempfile(),".tif")
+  #   }
+  #   
+  #   # binarize rasters
+  #   for (j in 1:length(output_list[[i]])) {
+  #     # convert values to 0 or 1
+  #     gdal_calc_run = paste("gdal_calc.py",
+  #                           "--calc \" (A>=0)*1 \" ",
+  #                           #"-of GTiff",
+  #                           #"-ot Byte",
+  #                           #"-a_nodata 255",
+  #                           "-A", output_list[[i]][j],
+  #                           "--outfile", tmp_file[j])
+  #     system(gdal_calc_run)
+  #   }
+  #   
+  #   # create a vrt with all the observations for a given band
+  #   output_vrt = vrt_imgs(tmp_file, "gdalbuildvrt", add_cmd = "-separate")
+  #   
+  #   # calculate median using gdal_summarize - https://github.com/mstrimas/gdal-summarize - https://strimas.com/post/raster-summarization-in-python/
+  #   gdal_summarize_run = paste("python3 gdal-summarize.py",
+  #                              "--function", func,
+  #                              "--overwrite",
+  #                              output_vrt,
+  #                              "--outfile", output_file1[i])
+  #   system(gdal_summarize_run)
+  #   
+  #   # convert back to UInt16 and assign nodata to 65535
+  #   gdal_translate_run = paste("gdal_translate",
+  #                              "-of GTiff",
+  #                              "-ot UInt16",
+  #                              "-a_nodata 65535",
+  #                              output_file1[i],
+  #                              output_numobs[i])
+  #   system(gdal_translate_run)
+  #   
+  #   # remove temp files
+  #   file.remove(output_vrt)
+  #   file.remove(output_file1[i])
+  #   file.remove(tmp_file)
+  #   
+  # }
+  #
+  ## run in parallel for all bands
+  # output_numobs=c()
+  # for (i in 1:length(output_list)) {
+  #   output_numobs[i] = paste0(tempfile(),".tif")
+  # }
+  #func = "sum"
+  # snowrun(fun = count_observations_wrapper,
+  #         values = 1:length(output_list),
+  #         no_cores = no_cores,
+  #         var_export = c("output_list", "output_file1", "output_file2", "vrt_imgs", "func"),
+  #         pack_export = NULL)
+  
+  # wrapper to count how many valid observations we have for each pixel
+  i=1
+  count_observations_wrapper = function(i) {
+    
+    # create tmp rasters
+    tmp_file=c()
+    for (j in 1:length(output_list[[i]])) {
+      tmp_file[j] = paste0(tempfile(),".tif")
+    }
+    
+    # binarize rasters
+    binarize_rasters = function(j) {
+      #for (j in 1:length(output_list[[i]])) {
+      # convert values to 0 or 1
+      gdal_calc_run = paste("gdal_calc.py",
+                            "--calc \" (A>=0)*1 \" ",
+                            #"-of GTiff",
+                            #"-ot Byte",
+                            #"-a_nodata 255",
+                            "-A", output_list[[i]][j],
+                            "--outfile", tmp_file[j])
+      system(gdal_calc_run)
+    }
+    
+    # binarize in parallel
+    snowrun(fun = binarize_rasters,
+            values = 1:length(output_list[[i]]),
+            no_cores = no_cores,
+            var_export = c("output_list", "tmp_file"),
+            pack_export = NULL)
+    
+    # create a vrt with all the observations for a given band
+    output_vrt = vrt_imgs(tmp_file, "gdalbuildvrt", add_cmd = "-separate")
+    
+    # calculate median using gdal_summarize - https://github.com/mstrimas/gdal-summarize - https://strimas.com/post/raster-summarization-in-python/
+    gdal_summarize_run = paste("python3 gdal-summarize.py",
+                               "--function", func,
+                               "--overwrite",
+                               output_vrt,
+                               "--outfile", output_file1[i])
+    system(gdal_summarize_run)
+    
+    # convert back to UInt16 and assign nodata to 65535
+    gdal_translate_run = paste("gdal_translate",
+                               "-of GTiff",
+                               "-ot UInt16",
+                               "-a_nodata 65535",
+                               output_file1[i],
+                               output_numobs[i])
+    system(gdal_translate_run)
+    
+    # remove temp files
+    file.remove(output_vrt)
+    file.remove(output_file1[i])
+    file.remove(tmp_file)
+    
+  }
+  
+  # run count obs for band 1 only
+  output_numobs = paste0(tempfile(),".tif")
+  func = "sum"
+  count_observations_wrapper(1)
+  
+  # # clean previous files
+  # for (i in 1:length(output_list)) {
+  #   file.remove(output_list[[i]])
+  # }
+  
+  # debugging
+  if (FALSE) {
+    r = raster(output_file1[i])
+    r
+    r[r<0 | r>10000]=NA
+    plot(r)
+    click(r)
+    gdalinfo(output_file1[i])
+    
+    # the original data
+    plot(raster(output_list[[i]][1]))
+    
+    # NA = 65535
+    r = raster(output_file2[i])
+    r
+    #r[r<0 | r>10000]=NA
+    plot(r)
+    click(r)
+    gdalinfo(output_file2[i])
+  }
+  
+  # testing
+  if (FALSE) {
+    r = stack(output_file2)
+    table(r[[1]][])
+    plot(r[[1]])
+    plot(r[[6]])
+    plot(r[[1]] - r[[6]])
+  }
+  
+  # combine the bands with the num of observations
+  output_file2 = c(output_file2, output_numobs)
+  
+  # measure time
+  t2 = mytoc(t1)
+  
+  # message
+  print(paste0(Sys.time(), ": Calculating median finished in ", t2))
+  
+  # return
+  return(output_file2)
+  
+}
+
+# function to make automatic time spent
+timer = function(obj) {
+  
+  if (is.character(obj)) {
+    
+    # message
+    print(paste0(Sys.time(), ": ", obj, " starting..."))
+    
+    # measure time
+    t1 = mytic()
+    
+    obj_output = list()
+    obj_output[[1]] = t1
+    obj_output[[2]] = obj
+    
+    return(obj_output)
+    
+  } else {
+    
+    # measure time
+    t2 = mytoc(obj[[1]])
+    
+    # message
+    print(paste0(Sys.time(), ": ",obj[[2]], " finished in ", t2))
+    
+  }
+  
+
+  
+}
+
 # aws functions -----------------------------------------------------------
 
 # function to get the filenames of files to download based on file_list_<year>.txt inside functions_dir
@@ -2110,12 +2375,17 @@ S3_sync = function(input_dir, output_dir) {
   system(paste0("aws s3 sync ", input_dir, " ", output_dir))
 }
 
-# if we got files, lets download them
+# function to download files from earthdata
 S3_download_single_file = function(i) {
   output_fname = paste0(output_dir, "/", basename(files_to_download[i]))
   if (!file.exists(output_fname)) {
     system(paste0("aws s3 cp ", files_to_download[i], " ", output_fname, " --profile earthdata"))
   }
+}
+
+# function to download/upload files from S3
+S3_download_upload = function(i) {
+  system(paste0("aws s3 cp ", input_files[i], " ", output_files[i], " --profile ", S3_profile))
 }
 
 # function to refresh credentials from earth data

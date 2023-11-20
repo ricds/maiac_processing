@@ -168,9 +168,10 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
     day = day_mat[as.numeric(loop_mat[j,1]),]
   }
   
-  # define files for the given tile and year
+  # get files for the given year, tile, and days
   fnames = fname_list[[grep(year, unique_years)]]
   fnames = grep(tile, fnames, value=T)
+  fnames = grep(paste(paste0(year,day), collapse="|"), fnames, value=T)
   fnames_s3 = paste0(ifelse(as.numeric(sapply("MCD19A1", grepl, fnames)) == TRUE, "s3://lp-prod-protected/MCD19A1.061/", "s3://lp-prod-protected/MCD19A3D.061/"), sub(".hdf", "", fnames), "/", fnames)
   
   # list files and download from s3
@@ -184,6 +185,8 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   
   # download files if needed
   if (length(fnames_s3) > 0) {
+    myt = timer("Downloading HDF files")
+    
     # refresh credentials from earth data prior to download
     refresh_credentials_earthdata()
     
@@ -194,6 +197,8 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
             values = 1:length(files_to_download),
             no_cores = parallel::detectCores()-1,
             var_export = c("files_to_download", "output_dir"))
+    
+    timer(myt)
   }
   
   # test if input dir is empty
@@ -234,12 +239,15 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   parameter_fname = basename(parameter_fname)
   
   # 3) organize the data according to the number of observations per day and the available bands, the way we have one object for each observation
+  # message
+  myt = timer("Loading files")
   brf_reflectance = LoadMAIACFilesGDALParallel(product_fname, output_dir, tmp_dir, product_res, isMCD, "A1") # 28 sec
   brf_fv = LoadMAIACFilesGDALParallel(product_fname, output_dir, tmp_dir, "Fv", isMCD, "A1")
   brf_fg = LoadMAIACFilesGDALParallel(product_fname, output_dir, tmp_dir, "Fg", isMCD, "A1")
   rtls_kiso = LoadMAIACFilesGDALParallel(parameter_fname, output_dir, tmp_dir, "Kiso", isMCD, "A3")
   rtls_kvol = LoadMAIACFilesGDALParallel(parameter_fname, output_dir, tmp_dir, "Kvol", isMCD, "A3")
   rtls_kgeo = LoadMAIACFilesGDALParallel(parameter_fname, output_dir, tmp_dir, "Kgeo", isMCD, "A3")
+  timer(myt)
   
   # get the dates of each observation
   brf_reflectance_dates = LoadMAIACFilesGDALParallel(product_fname, output_dir, tmp_dir, product_res, isMCD, "A1", dateOnly = TRUE)
@@ -250,16 +258,19 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   rtls_kgeo = rtls_kgeo[brf_reflectance_dates]
   
   # resample brf_fv and brf_fg
+  myt = timer("Resampling FV and FG")
   brf_fv_resampled = resample_f(brf_fv, brf_reflectance)
   brf_fg_resampled = resample_f(brf_fg, brf_reflectance)
   file.remove(brf_fv)
   file.remove(brf_fg)
   brf_fv = brf_fv_resampled
   brf_fg = brf_fg_resampled
-
+  timer(myt)
+  
   # 4) load QA layers, create a mask for each date excluding bad pixels (possibly cloud, adjacent cloud, cloud shadows, etc.) and apply the mask
   # remove pixels such as: possibly cloud, cloud adjacent, cloud shadow, etc.
   if (is_qa_filter) {
+    myt = timer("Applying QA to BRF")
     # filtering
     qa_brick = LoadMAIACFilesGDALParallel(product_fname, output_dir, tmp_dir, "Status_QA", isMCD, "A1")
     qa_mask = CreateQAMask(qa_brick)
@@ -273,22 +284,8 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
     
     # rename
     brf_reflectance = brf_reflectance_filtered
+    timer(myt)
   }
-  
-  # get the DOY of BRF and RTLS files
-  #brf_doy = get_dates_fv(brf_fv)
-  #brf_rtls = get_dates_kiso(rtls_kiso)
-  
-  # # save geotiff files to temporary folder so we can run the normalization using gdal, return only the filenames
-  # # this function also resamples the fv and fg to the same grid as the brf_reflectance
-  # brf_fv = SaveMAIACFilesTemporary(brf_fv, tmp_dir, r_resample = brf_reflectance[[1]])
-  # brf_fg = SaveMAIACFilesTemporary(brf_fg, tmp_dir, r_resample = brf_reflectance[[1]])
-  # brf_reflectance = SaveMAIACFilesTemporary(brf_reflectance, tmp_dir)
-  # rtls_kiso = SaveMAIACFilesTemporary(rtls_kiso, tmp_dir)
-  # rtls_kvol = SaveMAIACFilesTemporary(rtls_kvol, tmp_dir)
-  # rtls_kgeo = SaveMAIACFilesTemporary(rtls_kgeo, tmp_dir)
-  
-  ## STOPPED HERE, NEXT STEP IS MAKING THE CONVERT WITH GDAL WORK
   
   # 6) (parallel computing) apply brf normalization to nadir for each date using the respective RTLS parameters or nearest RTLS file, and the eq. from MAIAC documentation: (BRFn = BRF * (kL - 0.04578*kV - 1.10003*kG)/( kL + FV*kV + FG*kG))
   #nadir_brf_reflectance = ConvertBRFNadir(brf_reflectance, brf_fv, brf_fg, rtls_kiso, rtls_kvol, rtls_kgeo, tile, year, output_dir, no_cores, log_fname, view_geometry, isMCD, product_res, tmp_dir)
@@ -303,14 +300,16 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   }
   
   # put the bands together so its easier to calc the median
-  nadir_brf_reflectance_per_band = ReorderBrickPerBand(nadir_brf_reflectance, output_dir, tmp_dir)
+  #nadir_brf_reflectance_per_band = ReorderBrickPerBand(nadir_brf_reflectance, output_dir, tmp_dir)
+  nadir_brf_reflectance_per_band = ReorderBrickPerBandGDAL(nadir_brf_reflectance)
   rm(list = c("nadir_brf_reflectance"))
   
   # 7) calculate the median of each pixel using the remaining (best) pixels, and return a brick with 9 rasters (1-8 band, and no_samples of band1)
-  median_brf_reflectance = CalcMedianBRF(nadir_brf_reflectance_per_band, no_cores, log_fname, output_dir, tmp_dir)
+  #median_brf_reflectance = CalcMedianBRF(nadir_brf_reflectance_per_band, no_cores, log_fname, output_dir, tmp_dir)
+  median_brf_reflectance = CalcMedianBRFGDAL(nadir_brf_reflectance_per_band)
+  # sum(file.size(median_brf_reflectance))/(1024*1024)
   rm(list = c("nadir_brf_reflectance_per_band"))
   
-  # 8) plot a preview image of the composite and save it on the disk
   # define the composite number or name
   if (composite_no == "month") {
     composite_num = paste0("_",format(as.Date(paste0(day[length(day)],"-", year), "%j-%Y"), "%m"))
@@ -318,20 +317,40 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
     composite_num = day[length(day)]
   }
   
-  # output png with the images
-  if (FALSE) {
-    png(filename=paste0(tile_preview_dir,"fig_",composite_fname,"_",tile,"_",year,composite_num,".png"), type="cairo", units="cm", width=15, height=15, pointsize=10, res=300)
-    par(oma=c(4,4,4,4))
-    plot(stack(median_brf_reflectance[[1:(nlayers(median_brf_reflectance)-1)]]/10000, median_brf_reflectance[[nlayers(median_brf_reflectance)]]))
-    dev.off()
+  # define filenames for the files
+  if (product_res == 1000) {
+    band_names = c("band1","band2","band3","band4","band5","band6","band7","band8","no_samples")
+  } else {
+    band_names = c("band1","band2","band3","band4","band5","band6","band7","no_samples")
   }
+  output_filenames = paste0(output_dir,composite_fname,".",tile,".",year, composite_num,".",band_names,".tif")
   
-  # 9) save the processed composite
-  SaveProcessedTileComposite(median_brf_reflectance, output_dir, composite_fname, tile, year, day, composite_no, product_res)
+  # 9) move final files from temporary dir to their output directory
+  file.rename(median_brf_reflectance, output_filenames)
   rm(list = c("median_brf_reflectance"))
+  
+  # upload files to S3 and delete local files
+  if (upload_to_s3) {
+    myt = timer("Uploading files to S3")
+    
+    # upload
+    input_files = output_filenames
+    output_files = paste0(S3_output_path, view_geometry, "/", year, "/", basename(output_filenames))
+    snowrun(fun = S3_download_upload,
+            values = 1:length(input_files),
+            no_cores = parallel::detectCores()-1,
+            var_export = c("input_files", "output_files", "S3_profile"))
+    
+    # delete local files
+    file.remove(output_filenames)
+    timer(myt)
+  }
   
   # delete temporary directory
   unlink(file.path(tmp_dir), recursive=TRUE)
+  
+  # clean download folder (hdf files)
+  unlink(file.path(manual_dir_tiles[1]), recursive=T)
   
   # measure time
   t2 = mytoc(t1)

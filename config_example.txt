@@ -8,17 +8,22 @@ overwrite_files = FALSE
 
 ## This is not working for the current MCD version - keep at FALSE
 # enables filtering by Quality Assessment bits (adjacent clouds and stuff), may reduce number of available pixels
-is_qa_filter = FALSE
-# enables filtering by Extreme Angles > 80, may reduce number of available pixels
-is_ea_filter = FALSE
+is_qa_filter = TRUE
 
+# configuration of earth data login and password - https://urs.earthdata.nasa.gov/
+login_earthdata = "YOURLOGINHERE"
+pwd_earthdata = "YOURPWDHERE"
 
+# S3 configuration for uploading results
+upload_to_s3 = TRUE
+S3_profile = "ctrees"
+S3_output_path = "s3://ctrees-input-data/AnisoVeg_MCD19A1/v061_1km/tiled/"
 
 
 # Enable/Disable this setup by using TRUE or FALSE
-if (FALSE) {
+if (TRUE) {
 #####
-## Setup: South America 16-day 1km
+## Setup: Test August 2021 Two tiles in the Amazon
 
 # Product spatial resolution - either 1000 or 500 (m)
 product_res = 1000
@@ -27,20 +32,21 @@ no_cores = 5
 # View geometry can be one of this: "nadir", "backscat", or "forwardscat"
 view_geometry = "nadir"
 # Directory to place the processed data
-process_dir = "F:/_MAIAC_16d_Nadir/"
+process_dir = "/home/rstudio/_MAIAC_Month_Nadir/"
 # Number of days on each composite, should be 8, 16 or 32, or "month" for monthly composites
-composite_no = 16
-# Day of year
-manual_doy = seq(16,352,16)
+composite_no = "month"
+# Day of year of each composite (e.g. seq(16,352,16)), or months (e.g. 1:12) for monthly
+#manual_doy = seq(16,352,16)
+manual_doy = 1:12
 
-# Tiles to process - 2000:2019
-manual_year = c(2000:2019)
+# Tiles to process - 2000:2022
+manual_year = c(2000:2022)
 # Tiles to process - whole South America
 manual_tile = c("h09v07", "h10v07", "h11v07", "h12v07", "h09v08", "h10v08", "h11v08", "h12v08", "h13v08", "h09v09", "h10v09", "h11v09", "h12v09", "h13v09", "h14v09", "h10v10", "h11v10", "h12v10", "h13v10", "h14v10", "h11v11", "h12v11", "h13v11", "h14v11", "h11v12", "h12v12", "h13v12", "h12v13", "h13v13", "h13v14", "h14v14")
 # Merge info - do not change
 manual_tmp_grid = expand.grid(manual_doy, manual_tile, manual_year)
 # Set directory - may need to change this
-manual_dir_tiles = paste0(ifelse(manual_tmp_grid$Var3 %in% c(2017,2018,2019), "H", "E"), ":/MCD19_", manual_tmp_grid$Var3,"/")
+manual_dir_tiles = paste0("/home/rstudio/MAIAC_Download/MCD19_", manual_tmp_grid$Var3,"/")
 # Set up the vector - do not change
 manual_run = cbind(manual_tmp_grid$Var1, manual_tmp_grid$Var3, manual_dir_tiles, as.character(manual_tmp_grid$Var2))
 #####
