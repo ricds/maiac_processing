@@ -127,7 +127,7 @@ unique_years = as.numeric(unique(loop_mat[,2]))
 fname_list = list()
 for (i in 1:length(unique_years)) {
   # list files from S3 to local machine
-  fname_list[[i]] = get_filenames_to_download(functions_dir, unique_years[i])  
+  fname_list[[i]] = get_filenames_to_download(functions_dir, unique_years[i])
 }
 
 
@@ -174,17 +174,17 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   fnames = grep(paste(paste0(year,day), collapse="|"), fnames, value=T)
   fnames_s3 = paste0(ifelse(as.numeric(sapply("MCD19A1", grepl, fnames)) == TRUE, "s3://lp-prod-protected/MCD19A1.061/", "s3://lp-prod-protected/MCD19A3D.061/"), sub(".hdf", "", fnames), "/", fnames)
   
+  # clean download folder (hdf files)
+  unlink(file.path(manual_dir_tiles[1]), recursive=T)
+  
   # list files and download from s3
-  downloaded_files = list.files(manual_dir_tiles[1])
+  downloaded_files = list.files(manual_dir_tiles[1], pattern=".hdf$")
   idx_missing_download = which(!(fnames %in% downloaded_files))
   if (length(idx_missing_download) > 0) {
     fnames_s3 = fnames_s3[idx_missing_download]
   } else {
     fnames_s3 = integer(0)
   }
-  
-  # clean download folder (hdf files)
-  unlink(file.path(manual_dir_tiles[1]), recursive=T)
   
   # download files if needed
   if (length(fnames_s3) > 0) {
@@ -211,13 +211,13 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
     stop(paste0(Sys.time(), ": ERROR Input directory is Empty."))
   }
   
-  # check if composite processed file already exist, otherwise just skip to next iteration; manual_run overrides this and overwrite files
-  if (IsTileCompositeProcessed(composite_fname, tile, year, day, output_dir, overwrite_files))
-    return(0)
-  
-  # if no brf or rtls is available for given day, year, tile, return nan output, log the information and go to next iteration
-  if (!IsDataAvailable(product, tile, year, day, nan_tiles_dir, output_dir, obs="brf", composite_fname, composite_no, isMCD, product_res) | !IsDataAvailable(parameters, tile, year, day, nan_tiles_dir, output_dir, obs="rtls", composite_fname, composite_no, isMCD, product_res))
-    return(0)
+  # # check if composite processed file already exist, otherwise just skip to next iteration; manual_run overrides this and overwrite files
+  # if (IsTileCompositeProcessed(composite_fname, tile, year, day, output_dir, overwrite_files))
+  #   return(0)
+  # 
+  # # if no brf or rtls is available for given day, year, tile, return nan output, log the information and go to next iteration
+  # if (!IsDataAvailable(product, tile, year, day, nan_tiles_dir, output_dir, obs="brf", composite_fname, composite_no, isMCD, product_res) | !IsDataAvailable(parameters, tile, year, day, nan_tiles_dir, output_dir, obs="rtls", composite_fname, composite_no, isMCD, product_res))
+  #   return(0)
   
   # set temporary directory
   tmp_dir = paste0(tempdir(), "/tmp_",tile,"_",year,day[length(day)],"/")
@@ -243,6 +243,19 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   # remove directory from filenames, return only the "filenames".hdf
   product_fname = basename(product_fname)
   parameter_fname = basename(parameter_fname)
+  
+  # check if we have A1 and A3D at the same day for all dates, remove if not
+  day_list = list(vector("character"), vector("character"))
+  for (w in 1:length(day)) {
+    val1 = grep(paste0("A", year, day[w]), product_fname, value=T)
+    val2 = grep(paste0("A", year, day[w]), parameter_fname, value=T)
+    day_list[[1]][w] = ifelse(length(val1) == 0, NA, val1[1])
+    day_list[[2]][w] = ifelse(length(val2) == 0, NA, val2[1])
+  }
+  df=cbind(day_list[[1]], day_list[[2]])
+  df = df[rowSums(is.na(df))==0,]
+  product_fname=df[,1]
+  parameter_fname=df[,2]
   
   # 3) organize the data according to the number of observations per day and the available bands, the way we have one object for each observation
   # message

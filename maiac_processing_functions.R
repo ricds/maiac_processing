@@ -2370,6 +2370,7 @@ get_filenames_to_download = function(functions_dir, year) {
   txt_fname = paste0(functions_dir, "file_list_",year,".txt")
   if (file.exists(txt_fname)) {
     txt = read.table(txt_fname)$V1
+    txt = txt[which(nchar(txt)>100)]
     idx_ref = grep("MCD19A1", txt)
     txt_ref = txt[idx_ref]
     txt_brdf = txt[-idx_ref]
