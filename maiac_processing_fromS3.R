@@ -47,9 +47,9 @@ library(doParallel)  #install.packages("doParallel")
 library(rstudioapi)  #install.packages("rstudioapi")
 library(compiler)  #install.packages("compiler")
 library(Rcpp)  #install.packages("Rcpp")
-library(itertools)  #install.packages("itertools")
+#library(itertools)  #install.packages("itertools")
 library(plyr)  #install.packages("plyr")
-library(median2rcpp)  # download.file("https://www.dropbox.com/s/chneec889dl0nck/median2rcpp_0.1.0.tar.gz?raw=1", destfile = "median2rcpp_0.1.0.tar.gz", mode="wb"); system({'R CMD INSTALL "median2rcpp_0.1.0.tar.gz"'})
+#library(median2rcpp)  # download.file("https://www.dropbox.com/s/chneec889dl0nck/median2rcpp_0.1.0.tar.gz?raw=1", destfile = "median2rcpp_0.1.0.tar.gz", mode="wb"); system({'R CMD INSTALL "median2rcpp_0.1.0.tar.gz"'})
 #library(benchmarkme)
 
 # pre-compile code to try to speed things up - not sure if it works - must run the command twice don't know why
