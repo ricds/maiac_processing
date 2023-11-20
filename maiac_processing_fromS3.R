@@ -377,3 +377,12 @@ print(paste0(Sys.time(), ": Processing is now stopped. Either finished or some p
 # make sure to stop cluster
 stopCluster(cl)
 closeAllConnections()
+
+
+# turn off ----------------------------------------------------------------
+
+# stop instance when finish
+if (TRUE) {
+  instance_id = system('ec2metadata --instance-id', intern=T)
+  system(paste0("aws ec2 stop-instances --instance-ids ", instance_id))
+}
