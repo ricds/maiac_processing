@@ -825,6 +825,7 @@ LoadMAIACFilesGDALParallel = function(raster_filename, output_dir, tmp_dir, type
         fname_tif_list[w] = paste0(tempfile(),".tif")
         gdal_translate_run = paste("gdal_translate",
                                    "-of GTiff",
+                                   "-q",
                                    ifelse(product_type == "A1", paste0("-b ",obs), ""),
                                    fname_list[w],
                                    fname_tif_list[w])
@@ -839,6 +840,7 @@ LoadMAIACFilesGDALParallel = function(raster_filename, output_dir, tmp_dir, type
       tmp_output_fname = observations_fnames[[i]][obs]
       gdal_translate_run = paste("gdal_translate",
                                  "-of GTiff",
+                                 "-q",
                                  fname_vrt,
                                  tmp_output_fname)
       system(gdal_translate_run)
@@ -1133,6 +1135,7 @@ ConvertBRFNadirGDAL = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, 
                           #"--hideNoData",
                           "--type UInt16",
                           "--overwrite",
+                          "--quiet",
                           "--outfile", output_file1[i])
     system(gdal_calc_run)
     
@@ -1143,6 +1146,7 @@ ConvertBRFNadirGDAL = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, 
                           "--allBands A",
                           "--format GTiff",
                           "--overwrite",
+                          "--quiet",
                           "--outfile", output_file2[i])
     system(gdal_calc_run)
     
@@ -1420,6 +1424,7 @@ ApplyMaskOnBrick = function(raster_brick, mask_brick) {
                           "--calc \" (B == 1)*A \" ",
                           "-A", raster_brick[i],
                           "-B", mask_brick[i],
+                          "--quiet",
                           "--allBands A",
                           "--format GTiff",
                           "--outfile", output_file[i])
@@ -2005,6 +2010,7 @@ resample_f = function(f, brf) {
     # gdal_translate to change data format to Float32
     gdal_translate_run = paste("gdal_translate",
                                "-ot Float32",
+                               "-q",
                                brf[i],
                                f2[i]
     )
@@ -2014,6 +2020,7 @@ resample_f = function(f, brf) {
     gdalwarp_run = paste("gdalwarp",
                          "-wm", 20*1024*1024*1024,
                          #"-r bilinear",
+                         "-q",
                          f[i],
                          f2[i]
     )
@@ -2062,6 +2069,7 @@ ReorderBrickPerBandGDAL = function(nadir_brf_reflectance) {
       # get the observation j for band i
       gdal_translate_run = paste("gdal_translate",
                                  "-of GTiff",
+                                 "-q",
                                  paste0("-b ", i),
                                  nadir_brf_reflectance[j],
                                  output_list[[i]][j])
@@ -2117,6 +2125,7 @@ CalcMedianBRFGDAL = function(output_list) {
     gdal_summarize_run = paste("python3 gdal-summarize.py",
                                "--function", func,
                                "--overwrite",
+                               "--quiet",
                                output_vrt,
                                "--outfile", output_file1[i])
     system(gdal_summarize_run)
@@ -2125,6 +2134,7 @@ CalcMedianBRFGDAL = function(output_list) {
     gdal_translate_run = paste("gdal_translate",
                                "-of GTiff",
                                "-ot UInt16",
+                               "-q",
                                "-a_nodata 65535",
                                "-co COMPRESS=DEFLATE",
                                output_file1[i],
@@ -2227,6 +2237,7 @@ CalcMedianBRFGDAL = function(output_list) {
                             #"-ot Byte",
                             #"-a_nodata 255",
                             "-A", output_list[[i]][j],
+                            "--quiet",
                             "--outfile", tmp_file[j])
       system(gdal_calc_run)
     }
@@ -2245,6 +2256,7 @@ CalcMedianBRFGDAL = function(output_list) {
     gdal_summarize_run = paste("python3 gdal-summarize.py",
                                "--function", func,
                                "--overwrite",
+                               "--quiet",
                                output_vrt,
                                "--outfile", output_file1[i])
     system(gdal_summarize_run)
@@ -2253,6 +2265,7 @@ CalcMedianBRFGDAL = function(output_list) {
     gdal_translate_run = paste("gdal_translate",
                                "-of GTiff",
                                "-ot UInt16",
+                               "-q",
                                "-a_nodata 65535",
                                output_file1[i],
                                output_numobs[i])

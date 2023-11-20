@@ -183,6 +183,9 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
     fnames_s3 = integer(0)
   }
   
+  # clean download folder (hdf files)
+  unlink(file.path(manual_dir_tiles[1]), recursive=T)
+  
   # download files if needed
   if (length(fnames_s3) > 0) {
     myt = timer("Downloading HDF files")
@@ -195,7 +198,7 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
     output_dir = manual_dir_tiles[1]
     snowrun(fun = S3_download_single_file,
             values = 1:length(files_to_download),
-            no_cores = parallel::detectCores()-1,
+            no_cores = no_cores,
             var_export = c("files_to_download", "output_dir"))
     
     timer(myt)
@@ -219,6 +222,9 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   # set temporary directory
   tmp_dir = paste0(tempdir(), "/tmp_",tile,"_",year,day[length(day)],"/")
   
+  # delete temporary directory - to make sure it is clean
+  unlink(file.path(tmp_dir), recursive=TRUE)
+
   # create temporary directory
   dir.create(file.path(tmp_dir), showWarnings = FALSE)
   
@@ -338,7 +344,7 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
     output_files = paste0(S3_output_path, view_geometry, "/", year, "/", basename(output_filenames))
     snowrun(fun = S3_download_upload,
             values = 1:length(input_files),
-            no_cores = parallel::detectCores()-1,
+            no_cores = no_cores,
             var_export = c("input_files", "output_files", "S3_profile"))
     
     # delete local files
