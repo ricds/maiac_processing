@@ -220,7 +220,8 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   #   return(0)
   
   # set temporary directory
-  tmp_dir = paste0(tempdir(), "/tmp_",tile,"_",year,day[length(day)],"/")
+  #tmp_dir = paste0(tempdir(), "/tmp_",tile,"_",year,day[length(day)],"/")
+  tmp_dir = paste0(tempdir(), "/")
   
   # clean temporary directory
   file.remove(list.files(tmp_dir, recursive=T, full.names=T))
