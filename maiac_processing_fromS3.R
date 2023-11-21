@@ -222,7 +222,8 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
   # set temporary directory
   tmp_dir = paste0(tempdir(), "/tmp_",tile,"_",year,day[length(day)],"/")
   
-  # delete temporary directory - to make sure it is clean
+  # clean temporary directory
+  file.remove(list.files(tmp_dir, recursive=T, full.names=T))
   unlink(file.path(tmp_dir), recursive=TRUE)
 
   # create temporary directory
@@ -365,7 +366,8 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
     timer(myt)
   }
   
-  # delete temporary directory
+  # clean temporary directory
+  file.remove(list.files(tmp_dir, recursive=T, full.names=T))
   unlink(file.path(tmp_dir), recursive=TRUE)
   
   # clean download folder (hdf files)
