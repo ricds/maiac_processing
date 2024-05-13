@@ -1,3 +1,4 @@
 *.txt
 .Rproj.user
 earthdata.netrc
+maiac_processing.Rproj
