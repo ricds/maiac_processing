@@ -21,6 +21,7 @@ library(itertools)  #install.packages("itertools")
 functions_dir = paste0(dirname(rstudioapi::getActiveDocumentContext()$path),"/")
 
 # load config.txt file that should be in the same directory of the scripts
+machine = "WS"
 source(paste0(functions_dir, "config_mosaic_vi.txt"))
 
 # load functions
@@ -47,6 +48,13 @@ f_ndvi = function(NIR, RED) {
 }
 ff_ndvi = cmpfun(f_ndvi)
 
+# function to calc gcc
+f_gcc = function(RED, GREEN, BLUE) {
+  GCC = {GREEN}/{RED+GREEN+BLUE}
+  GCC*10000
+}
+ff_gcc = cmpfun(f_gcc)
+
 # Initiate cluster - Only use parallel if the mosaic is not huge like the whole south america
 #cl = parallel::makeCluster(no_cores)
 #registerDoParallel(cl)
@@ -62,12 +70,13 @@ for (i in 1:dim(composite_vec)[1]) {
   if (length(file_list)!=0) {
     
     # check if vi exist
-    if(length(grep(file_list, pattern="ndvi", value = T))==0 || length(grep(file_list, pattern="evi", value = T))==0) {
+    if(length(grep(file_list, pattern="ndvi", value = T))==0 || length(grep(file_list, pattern="evi", value = T))==0 || length(grep(file_list, pattern="gcc", value = T))==0) {
       
       # get bands
       maiac_band1 = raster(grep(file_list, pattern="band1", value=T))/10000
       maiac_band2 = raster(grep(file_list, pattern="band2", value=T))/10000
       maiac_band3 = raster(grep(file_list, pattern="band3", value=T))/10000
+      maiac_band4 = raster(grep(file_list, pattern="band4", value=T))/10000
       
       # apply function
       if (length(grep(file_list, pattern="ndvi", value = T))==0) {
@@ -86,7 +95,16 @@ for (i in 1:dim(composite_vec)[1]) {
                     options = c("COMPRESS=LZW","PREDICTOR=2"))
       }
       
-      rm("maiac_band2","maiac_band1","maiac_band3")
+      
+      if (length(grep(file_list, pattern="gcc", value = T))==0) {
+        writeRaster(x=overlay(maiac_band1, maiac_band4, maiac_band3, fun=ff_gcc),
+                    filename = paste0(dirname(grep(file_list, pattern="band1", value=T)), "/", mosaic_base_filename, "_", composite_vec[i,], "_gcc_latlon.tif"),
+                    overwrite = TRUE, format = "GTiff",
+                    datatype = "INT2S",
+                    options = c("COMPRESS=LZW","PREDICTOR=2"))
+      }
+      
+      rm("maiac_band2","maiac_band1","maiac_band3","maiac_band4")
     }
   }
   
