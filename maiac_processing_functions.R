@@ -714,7 +714,7 @@ LoadMAIACFilesGDAL = function(raster_filename, output_dir, tmp_dir, type, isMCD,
 
 # function to load files of a specific type from the temporary output folder "output_dir"/tmp
 LoadMAIACFilesGDALParallel = function(raster_filename, output_dir, tmp_dir, type, isMCD, product_type, dateOnly=FALSE) {
-
+  
   # adjust the 'type' variable for the brf according to resolution and product
   if (is.numeric(type)) {
     product_res = type
@@ -732,24 +732,40 @@ LoadMAIACFilesGDALParallel = function(raster_filename, output_dir, tmp_dir, type
   
   
   # name and order vector of the subdatasets
-  #science_dataset_names = c("sur_refl1","sur_refl2","sur_refl3","sur_refl4","sur_refl5","sur_refl6","sur_refl7","sur_refl8","sur_refl9","sur_refl10","sur_refl11","sur_refl12","Sigma_BRFn1","Sigma_BRFn2","Snow_Fraction","Snow_Grain_Size","Snow_Fit","Status_QA","Sur_refl_500m1","Sur_refl_500m2","Sur_refl_500m3","Sur_refl_500m4","Sur_refl_500m5","Sur_refl_500m6","Sur_refl_500m7","cosSZA","cosVZA","RelAZ","Scattering_Angle","SAZ","VAZ","Glint_Angle","Fv","Fg") # v6 or prior (?)
-  science_dataset_names = c("sur_refl1","sur_refl2","sur_refl3","sur_refl4","sur_refl5","sur_refl6","sur_refl7","sur_refl8","sur_refl9","sur_refl10","sur_refl11","sur_refl12","Sigma_BRFn1","Sigma_BRFn2","Snow_Fraction","Snow_Grain_Size","Status_QA","Snow_Fit","Sur_refl_500m1","Sur_refl_500m2","Sur_refl_500m3","Sur_refl_500m4","Sur_refl_500m5","Sur_refl_500m6","Sur_refl_500m7","cosSZA","cosVZA","RelAZ","Scattering_Angle","VAZ","SAZ","Glint_Angle","Fv","Fg") # v6.1
-  science_dataset_parameter_names = c("Kiso", "Kvol", "Kgeo", "sur_albedo", "UpdateDay")
+  if (isMCD) {
+    #science_dataset_names = c("sur_refl1","sur_refl2","sur_refl3","sur_refl4","sur_refl5","sur_refl6","sur_refl7","sur_refl8","sur_refl9","sur_refl10","sur_refl11","sur_refl12","Sigma_BRFn1","Sigma_BRFn2","Snow_Fraction","Snow_Grain_Size","Snow_Fit","Status_QA","Sur_refl_500m1","Sur_refl_500m2","Sur_refl_500m3","Sur_refl_500m4","Sur_refl_500m5","Sur_refl_500m6","Sur_refl_500m7","cosSZA","cosVZA","RelAZ","Scattering_Angle","SAZ","VAZ","Glint_Angle","Fv","Fg") # v6 or prior (?)
+    science_dataset_names = c("sur_refl1","sur_refl2","sur_refl3","sur_refl4","sur_refl5","sur_refl6","sur_refl7","sur_refl8","sur_refl9","sur_refl10","sur_refl11","sur_refl12","Sigma_BRFn1","Sigma_BRFn2","Snow_Fraction","Snow_Grain_Size","Status_QA","Snow_Fit","Sur_refl_500m1","Sur_refl_500m2","Sur_refl_500m3","Sur_refl_500m4","Sur_refl_500m5","Sur_refl_500m6","Sur_refl_500m7","cosSZA","cosVZA","RelAZ","Scattering_Angle","VAZ","SAZ","Glint_Angle","Fv","Fg") # v6.1
+    science_dataset_parameter_names = c("Kiso", "Kvol", "Kgeo", "sur_albedo", "UpdateDay")
+  } else {
+    science_dataset_names = c(":grid1km:sur_refl",":grid1km:Sigma_BRFn",":grid1km:Snow_Fraction",":grid1km:Snow_Grain_Diameter",":grid1km:Snow_Fit",":grid1km:Status_QA",":grid500m:sur_refl_500m",":grid5km:cosSZA",":grid5km:cosVZA",":grid5km:RelAZ",":grid5km:Scattering_Angle",":grid5km:Glint_Angle",":grid5km:SAZ",":grid5km:VAZ",":grid5km:Fv",":grid5km:Fg")
+    science_dataset_parameter_names = c(":grid1km:Kiso",":grid1km:Kvol",":grid1km:Kgeo",":grid1km:sur_albedo",":UpdateDay")
+  }
   
   # identify the type
-  if (type == "sur_refl") {
-    type_number = sprintf("%02d", 1:8)
-  } else {
-    if (type == "Sur_refl_500m") {
-      type_number = sprintf("%02d", 19:25)
+  if (isMCD) {
+    if (type == "sur_refl") {
+      type_number = sprintf("%02d", 1:8)
     } else {
-      type_number = sprintf("%02d", grep(paste0("^", type, "$"), science_dataset_names))
-      if (length(type_number)==0) type_number = sprintf("%01d", grep(paste0("^", type, "$"), science_dataset_parameter_names))
-      if (length(type_number)==0) {
-        # message
-        stop(paste0(Sys.time(), ": Can't find file type to open: ",type))
+      if (type == "Sur_refl_500m") {
+        type_number = sprintf("%02d", 19:25)
+      } else {
+        type_number = sprintf("%02d", grep(paste0("^", type, "$"), science_dataset_names))
+        if (length(type_number)==0) type_number = sprintf("%01d", grep(paste0("^", type, "$"), science_dataset_parameter_names))
+        if (length(type_number)==0) {
+          # message
+          stop(paste0(Sys.time(), ": Can't find file type to open: ",type))
+        }
       }
     }
+  } else {
+    # experimental maiac
+    if (type == "sur_refl") {
+      type_number = sprintf("%02d", 1)
+    } else {
+      type_number = 1:3
+      type_number = sprintf("%02d", grep(paste0("^", type, "$"), science_dataset_names))
+    }
+    
   }
   
   # create vector of filenames for the temporary files
@@ -796,7 +812,6 @@ LoadMAIACFilesGDALParallel = function(raster_filename, output_dir, tmp_dir, type
   
   # loop though files and load the files
   i=1
-  #for (i in 1:length(raster_filename)) {
   tif_organize = function(i) {
     
     # change number of observations depending on the product
@@ -820,6 +835,7 @@ LoadMAIACFilesGDALParallel = function(raster_filename, output_dir, tmp_dir, type
       
       # save each band separately
       fname_tif_list = c()
+      w=1
       for (w in 1:length(fname_list)) {
         # get the bands
         fname_tif_list[w] = paste0(tempfile(),".tif")
@@ -873,6 +889,179 @@ LoadMAIACFilesGDALParallel = function(raster_filename, output_dir, tmp_dir, type
   # return
   return(observations_fnames)
 }
+
+# function to load files of a specific type from the temporary output folder "output_dir"/tmp
+LoadMAIACFilesGDALParallel_nonMCD = function(raster_filename, output_dir, tmp_dir, type, isMCD, product_type, dateOnly=FALSE) {
+  
+  # adjust the 'type' variable for the brf according to resolution and product
+  if (is.numeric(type)) {
+    product_res = type
+    
+    if (product_res == 1000) {
+      type = "sur_refl"
+    } else {
+      if (isMCD) {
+        type = "Sur_refl_500m"
+      } else {
+        type = "sur_refl_500m"
+      }
+    }
+  }
+  
+  
+  # name and order vector of the subdatasets
+  if (isMCD) {
+    #science_dataset_names = c("sur_refl1","sur_refl2","sur_refl3","sur_refl4","sur_refl5","sur_refl6","sur_refl7","sur_refl8","sur_refl9","sur_refl10","sur_refl11","sur_refl12","Sigma_BRFn1","Sigma_BRFn2","Snow_Fraction","Snow_Grain_Size","Snow_Fit","Status_QA","Sur_refl_500m1","Sur_refl_500m2","Sur_refl_500m3","Sur_refl_500m4","Sur_refl_500m5","Sur_refl_500m6","Sur_refl_500m7","cosSZA","cosVZA","RelAZ","Scattering_Angle","SAZ","VAZ","Glint_Angle","Fv","Fg") # v6 or prior (?)
+    science_dataset_names = c("sur_refl1","sur_refl2","sur_refl3","sur_refl4","sur_refl5","sur_refl6","sur_refl7","sur_refl8","sur_refl9","sur_refl10","sur_refl11","sur_refl12","Sigma_BRFn1","Sigma_BRFn2","Snow_Fraction","Snow_Grain_Size","Status_QA","Snow_Fit","Sur_refl_500m1","Sur_refl_500m2","Sur_refl_500m3","Sur_refl_500m4","Sur_refl_500m5","Sur_refl_500m6","Sur_refl_500m7","cosSZA","cosVZA","RelAZ","Scattering_Angle","VAZ","SAZ","Glint_Angle","Fv","Fg") # v6.1
+    science_dataset_parameter_names = c("Kiso", "Kvol", "Kgeo", "sur_albedo", "UpdateDay")
+  } else {
+    science_dataset_names = c(":grid1km:sur_refl",":grid1km:Sigma_BRFn",":grid1km:Snow_Fraction",":grid1km:Snow_Grain_Diameter",":grid1km:Snow_Fit",":grid1km:Status_QA",":grid500m:sur_refl_500m",":grid5km:cosSZA",":grid5km:cosVZA",":grid5km:RelAZ",":grid5km:Scattering_Angle",":grid5km:Glint_Angle",":grid5km:SAZ",":grid5km:VAZ",":grid5km:Fv",":grid5km:Fg")
+    science_dataset_parameter_names = c(":grid1km:Kiso",":grid1km:Kvol",":grid1km:Kgeo",":grid1km:sur_albedo",":UpdateDay")
+  }
+  
+  # identify the type
+  if (isMCD) {
+    if (type == "sur_refl") {
+      type_number = sprintf("%02d", 1:8)
+    } else {
+      if (type == "Sur_refl_500m") {
+        type_number = sprintf("%02d", 19:25)
+      } else {
+        type_number = sprintf("%02d", grep(paste0("^", type, "$"), science_dataset_names))
+        if (length(type_number)==0) type_number = sprintf("%01d", grep(paste0("^", type, "$"), science_dataset_parameter_names))
+        if (length(type_number)==0) {
+          # message
+          stop(paste0(Sys.time(), ": Can't find file type to open: ",type))
+        }
+      }
+    }
+  } else {
+    # experimental maiac
+    if (product_type == "A1") {
+      if (type == "sur_refl") {
+        type_number = sprintf("%02d", 1)
+      } else {
+        #type_number = sprintf("%02d", grep(paste0("^", type, "$"), science_dataset_names))
+        type_number = sprintf("%02d", grep(paste0(type, "$"), science_dataset_names))
+      }
+    } else {
+      type_number = sprintf("%01d", grep(paste0(type, "$"), science_dataset_parameter_names))
+    }
+    
+  }
+  
+  ## for experimental maiac, the surface reflectance bands are already in one geotiff, we dont need to combine them
+  ## we just need to list them
+  
+  # create vector of filenames for the temporary files
+  if (!isMCD) {
+    
+    # empty vector to store results
+    observations_fnames = c()
+    
+    # loop though files and load the files
+    i=1
+    for (i in 1:length(raster_filename)) {
+      
+      # get filename
+      observations_fnames[i] = paste0(tmp_dir,raster_filename[i],"_",type_number,".tif")
+      
+    }
+    
+    return(observations_fnames)
+    
+  } # end filename creation
+  
+  # get date
+  if (dateOnly) {
+    date_vec = c()
+    for (k in 1:length(observations_fnames)) {
+      tmp = length(observations_fnames[[k]])
+      date_vec = c(date_vec, rep(k, tmp))
+    }
+    return(date_vec)
+  }
+  
+  # loop though files and load the files
+  i=1
+  tif_organize = function(i) {
+    
+    # change number of observations depending on the product
+    if (product_type == "A1") {
+      # number of observations in this raster
+      n_obs = nlayers(brick(paste0(tmp_dir,raster_filename[i],"_",type_number[1],".tif")))  
+    } else {
+      n_obs = 1
+    }
+    
+    # load band filenames
+    j=1
+    fname_list = c()
+    for (j in 1:length(type_number)) {
+      fname_list[j] = paste0(tmp_dir,raster_filename[i],"_",type_number[j],".tif")
+    }
+    
+    # loop observations
+    obs=1
+    for (obs in 1:n_obs) {
+      
+      # save each band separately
+      fname_tif_list = c()
+      w=1
+      for (w in 1:length(fname_list)) {
+        # get the bands
+        fname_tif_list[w] = paste0(tempfile(),".tif")
+        gdal_translate_run = paste("gdal_translate",
+                                   "-of GTiff",
+                                   "-q",
+                                   ifelse(product_type == "A1", paste0("-b ",obs), ""),
+                                   fname_list[w],
+                                   fname_tif_list[w])
+        system(gdal_translate_run)
+      }
+      
+      # create vrt
+      fname_vrt = vrt_imgs(fname_tif_list, "gdalbuildvrt", add_cmd = ifelse(product_type == "A1","-separate",""))
+      
+      # combine them back together into one geotiff
+      #tmp_output_fname = paste0(tempfile(),".tif")
+      tmp_output_fname = observations_fnames[[i]][obs]
+      gdal_translate_run = paste("gdal_translate",
+                                 "-of GTiff",
+                                 "-q",
+                                 fname_vrt,
+                                 tmp_output_fname)
+      system(gdal_translate_run)
+      
+      # remove temp files
+      file.remove(fname_tif_list)
+      file.remove(fname_vrt)
+      
+      # assign result to the vector
+      #observations_fnames[length(observations_fnames)+1] = tmp_output_fname
+      
+    } # end observations
+    
+  }
+  
+  # run in parallel
+  snowrun(fun = tif_organize,
+          values = 1:length(raster_filename),
+          no_cores = no_cores,
+          var_export = c("raster_filename", "tmp_dir", "product_type", "type_number", "observations_fnames", "vrt_imgs"),
+          pack_export = "raster")
+  
+  
+  # unlist
+  observations_fnames = unlist(observations_fnames)
+  #file.exists(observations_fnames)
+  #file.remove(observations_fnames)
+  
+  
+  # return
+  return(observations_fnames)
+}
+
 
 # function to filter bad values of a "x" variable
 FilterValEqualToNA = function(x, equal) {
@@ -1171,7 +1360,7 @@ ConvertBRFNadirGDAL = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, 
   snowrun(fun = normalization_wrapper,
           values = 1:length(BRF),
           no_cores = no_cores,
-          var_export = c("BRF", "FV", "FG", "kL", "kV", "kG", "coeff_Fv", "coeff_Fg", "output_file1", "output_file2"),
+          var_export = c("BRF", "FV", "FG", "kL", "kV", "kG", "coeff_Fv", "coeff_Fg", "output_file1", "output_file2", "isMCD"),
           pack_export = NULL)
   
   # measure time
@@ -2040,7 +2229,7 @@ resample_f = function(f, brf) {
 }
 
 # function to reorder bricks per band to calculate median
-ReorderBrickPerBandGDAL = function(nadir_brf_reflectance) {
+ReorderBrickPerBandGDAL = function(nadir_brf_reflectance, n_bands = 8) {
   
   # message
   print(paste0(Sys.time(), ": Reordering observations by band..."))
@@ -2049,7 +2238,7 @@ ReorderBrickPerBandGDAL = function(nadir_brf_reflectance) {
   t1 = mytic()
   
   # create output filenames
-  n_bands = nlayers(stack(nadir_brf_reflectance[1]))
+  #n_bands = nlayers(stack(nadir_brf_reflectance[1]))
   output_list=list()
   for (i in 1:n_bands) {
     output_list[[i]] = vector("character", length(nadir_brf_reflectance))
@@ -2134,6 +2323,7 @@ CalcMedianBRFGDAL = function(output_list) {
     gdal_translate_run = paste("gdal_translate",
                                "-of GTiff",
                                "-ot UInt16",
+                               ifelse(!isMCD,"-a_srs \"+proj=sinu +lon_0=-70 +R=6371007.181 +units=m +no_defs\"",""), # override the projection of experimental product
                                "-q",
                                "-a_nodata 65535",
                                "-co COMPRESS=DEFLATE",
@@ -2152,7 +2342,7 @@ CalcMedianBRFGDAL = function(output_list) {
   snowrun(fun = normalize_wrapper,
           values = 1:length(output_list),
           no_cores = no_cores,
-          var_export = c("output_list", "output_file1", "output_file2", "vrt_imgs", "func"),
+          var_export = c("output_list", "output_file1", "output_file2", "vrt_imgs", "func", "isMCD"),
           pack_export = NULL)
   
   # # wrapper to count how many valid observations we have for each pixel
@@ -2265,6 +2455,7 @@ CalcMedianBRFGDAL = function(output_list) {
     gdal_translate_run = paste("gdal_translate",
                                "-of GTiff",
                                "-ot UInt16",
+                               ifelse(!isMCD,"-a_srs \"+proj=sinu +lon_0=-70 +R=6371007.181 +units=m +no_defs\"",""), # override the projection of experimental product
                                "-q",
                                "-a_nodata 65535",
                                output_file1[i],
@@ -2359,7 +2550,7 @@ timer = function(obj) {
     
   }
   
-
+  
   
 }
 
@@ -2400,6 +2591,186 @@ S3_download_single_file = function(i) {
 # function to download/upload files from S3
 S3_download_upload = function(i) {
   system(paste0("aws s3 cp ", input_files[i], " ", output_files[i], " --profile ", S3_profile))
+}
+
+# function to list files in a bucket
+s3_list_bucket = function(s3_input, RETRIEVE_ONLY_KEY = TRUE) {
+  
+  # lib
+  require(paws)
+  
+  # determine bucket and prefix to search that fit in the s3 function
+  tmp = stringr::str_split(s3_input, "/")[[1]]
+  bucket = tmp[3]
+  prefix = paste(tmp[4:length(tmp)], collapse ="/")
+  
+  # create connection
+  s3 <- paws::s3()
+  
+  # # to list files in AWS 
+  # list_files_aws = s3$list_objects(
+  #   Bucket = bucket,
+  #   Prefix = prefix,
+  #   MaxKeys = 99999
+  # )
+  
+  # # create vector with the list
+  # file_list = c()
+  # for (i in 1:length(list_files_aws$Contents)) file_list[i] = list_files_aws$Contents[[i]]$Key
+  
+  # to list files in AWS 
+  file_list = s3_list_objects_paginated(bucket, prefix, RETRIEVE_ONLY_KEY)
+  #file_list = list_files_aws$Key
+  
+  # adjust file names
+  if (!is.null(file_list)) {
+    file_list[[1]] = paste0("s3://", bucket, "/", file_list[[1]])
+  }
+  
+  if (RETRIEVE_ONLY_KEY) file_list = file_list[[1]]
+  
+  # return files
+  return(file_list)
+  
+}
+
+# function to list s3 objects with pagination
+s3_list_objects_paginated <- function(bucket, prefix, RETRIEVE_ONLY_KEY = TRUE, last_modified = TRUE, max_retries = 5) {
+  
+  response <- paws.storage::s3()$list_objects_v2(
+    Bucket = bucket,
+    Prefix = prefix
+  )
+  
+  responses <- list(response)
+  
+  if (response[["IsTruncated"]]) {
+    
+    truncated <- TRUE
+    
+    while (truncated) {
+      
+      retry <- TRUE
+      retries <- 0
+      
+      # If an error is returned by AWS then try again with exponential backoff
+      while (retry && retries < max_retries) {
+        
+        response <- tryCatch(
+          paws.storage::s3()$list_objects_v2(
+            Bucket = bucket,
+            Prefix = prefix,
+            ContinuationToken = response[["NextContinuationToken"]]
+          ) 
+          #,error = \(e) e
+        )
+        
+        if (inherits(response, "error")) {
+          if (retries == max_retries) stop(response)
+          
+          wait_time <- 2 ^ retries / 10
+          Sys.sleep(wait_time)
+          retries <- retries + 1
+        } else {
+          retry <- FALSE
+        }
+      }
+      
+      responses <- append(responses, list(response))
+      
+      truncated <- response[["IsTruncated"]]
+      
+    }
+    
+  } 
+  
+  # 
+  print(paste(Sys.time(), "All files were queried. Now concatenating the results."))
+  
+  i=1
+  file_list=c()
+  for (i in 1:length(responses)) {
+    j=1
+    if (length(responses[[i]]$Contents) > 0) {
+      for (j in 1:length(responses[[i]]$Contents)) file_list = c(file_list, responses[[i]]$Contents[[j]]$Key)
+    }
+  }
+  
+  # also retrieve other info
+  if (!RETRIEVE_ONLY_KEY) {
+    last_modified_info=c()
+    for (i in 1:length(responses)) {
+      j=1
+      if (length(responses[[i]]$Contents) > 0) {
+        for (j in 1:length(responses[[i]]$Contents)) last_modified_info = c(last_modified_info, responses[[i]]$Contents[[j]]$LastModified)
+      }
+    }
+    
+    file_list = list(file_list, last_modified_info)
+  } else {
+    file_list = list(file_list)
+  }
+  
+  print(paste(Sys.time(), "File listing done."))
+  
+  # df_responses <- responses |> 
+  #   purrr::map("Contents") |> 
+  #   purrr::map(
+  #     \(x) purrr::map(
+  #       x, \(y) purrr::keep(y, names(y) %in% c("Key", "LastModified"))
+  #     )
+  #   ) |> 
+  #   dplyr::bind_rows()
+  # 
+  # if (last_modified) {
+  #   dplyr::arrange(df_responses, dplyr::desc(LastModified))
+  # } else {
+  #   df_responses
+  # }
+  
+  return(file_list)
+  
+}
+
+# function to download S3 files
+S3_copy_single = function(input_fname, output_fname, s3_profile = NULL) {
+  
+  for (i in 1:length(input_fname)) {
+    system(paste0("aws s3 cp ", input_fname[i], " ", output_fname[i], ifelse(!is.null(s3_profile), paste0(" --profile ", s3_profile), "")))
+  }
+  
+}
+
+# function to download S3 files in parallel
+S3_copy_single_parallel = function(input_fname, output_fname, s3_profile = NULL, no_cores = parallel::detectCores()-1, add_cmd = NULL) {
+  
+  if (length(input_fname) < no_cores) {
+    
+    S3_copy_single(input_fname, output_fname, s3_profile)
+    
+  } else {
+    
+    download_wrapper = function(i){
+      if (!file.exists(output_fname[i])) {
+        system(paste0("aws s3 cp ",
+                      input_fname[i],
+                      " ",
+                      output_fname[i],
+                      ifelse(!is.null(s3_profile), paste0(" --profile ", s3_profile), ""),
+                      ifelse(!is.null(add_cmd),paste0(" ", add_cmd),"")
+        ))
+      }
+    }
+    
+    # run tiling
+    snowrun(fun = download_wrapper,
+            values = 1:length(input_fname),
+            no_cores = no_cores,
+            var_export = c("input_fname", "output_fname", "s3_profile"),
+            pack_export = NULL)
+    
+  }
+  
 }
 
 # function to refresh credentials from earth data
@@ -2443,9 +2814,11 @@ snowrun = function(fun, values, no_cores, var_export = NULL, pack_export = NULL,
   }
   
   # run in parallel
-  system.time({snowfall::sfLapply(values, fun)})
+  system.time({a = snowfall::sfLapply(values, fun)})
   snowfall::sfStop()
   
+  # return
+  return(a)
 }
 
 # function to mosaic images
