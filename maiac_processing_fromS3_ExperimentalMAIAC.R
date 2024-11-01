@@ -213,6 +213,7 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
     
     # get raw files for the given year, tile, and days
     fnames_s3 = fname_list[[grep(tile, unique_tiles)]]
+    fnames_s3 = grep(".hdf$", fnames_s3, value=T)
     fnames_s3 = grep(paste0("/", year,"/"), fnames_s3, value=T)
     fnames_s3 = grep(paste(paste0(year,day), collapse="|"), fnames_s3, value=T)
     
