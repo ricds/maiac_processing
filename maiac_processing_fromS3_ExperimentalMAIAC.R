@@ -194,6 +194,18 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
       band_names = c("band1","band2","band3","band4","band5","band6","band7","no_samples")
     }
     
+    # get raw files for the given year, tile, and days
+    fnames_s3 = fname_list[[grep(tile, unique_tiles)]]
+    fnames_s3 = grep(".hdf$", fnames_s3, value=T)
+    fnames_s3 = grep(paste0("/", year,"/"), fnames_s3, value=T)
+    fnames_s3 = grep(paste(paste0(year,day), collapse="|"), fnames_s3, value=T)
+    
+    # skip if no data
+    if (length(fnames_s3) == 0) {
+      print("No files to process in S3.")
+      return(0)
+    }
+    
     # define composite name
     output_filenames = paste0(output_dir,composite_fname,"_",tile,"_",year, composite_num,"_",band_names,".tif")
     
@@ -210,15 +222,6 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
       file.remove(output_filenames)
       return(0)
     }
-    
-    # get raw files for the given year, tile, and days
-    fnames_s3 = fname_list[[grep(tile, unique_tiles)]]
-    fnames_s3 = grep(".hdf$", fnames_s3, value=T)
-    fnames_s3 = grep(paste0("/", year,"/"), fnames_s3, value=T)
-    fnames_s3 = grep(paste(paste0(year,day), collapse="|"), fnames_s3, value=T)
-    
-    # skip if no data
-    if (length(fnames_s3) == 0) return(0)
     
     # clean download folder (hdf files)
     unlink(file.path(manual_dir_tiles[1]), recursive=T)
