@@ -25,7 +25,7 @@ library(rstudioapi)  #install.packages("rstudioapi")
 library(compiler)  #install.packages("compiler")
 
 # define if EC2 or WS
-machine = "WS"
+machine = "EC2"
 
 
 # PROCESS -----------------------------------------------------------------
@@ -87,17 +87,41 @@ f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster","gdalUtils","rgdal")
   # process each band
   j=1
   for (j in 1:length(band_names)) {
+    
     # define output fname
-    output1 = paste0(mosaic_output_dir,mosaic_base_filename,"_",view_geometry, "_", composite_vec[i,],"_",band_names[j],".tif")
-    output2 = paste0(mosaic_output_dir,mosaic_base_filename,"_",view_geometry, "_",composite_vec[i,],"_",band_names[j],"_latlon.tif")
-    output3 = paste0(mosaic_output_dir,mosaic_base_filename,"_",view_geometry, "_",composite_vec[i,],"_",band_names[j],"_latlon_crop.tif")
-    output4 = paste0(mosaic_output_dir,mosaic_base_filename,"_",view_geometry, "_",composite_vec[i,],"_",band_names[j],"_latlon_crop_mask.tif")
+    output1 = paste0(mosaic_output_dir, mosaic_base_filename,"_",view_geometry, "_",composite_vec[i,],"_",band_names[j],".tif")
+    output2 = paste0(mosaic_output_dir, mosaic_base_filename,"_",view_geometry, "_",composite_vec[i,],"_",band_names[j],"_latlon.tif")
+    output3 = paste0(mosaic_output_dir, mosaic_base_filename,"_",view_geometry, "_",composite_vec[i,],"_",band_names[j],"_latlon_crop.tif")
+    output4 = paste0(mosaic_output_dir, mosaic_base_filename,"_",view_geometry, "_",composite_vec[i,],"_",band_names[j],"_latlon_crop_mask.tif")
+    
+    # define output filename in s3
+    input_file = output2
+    output_file_s3 = paste0(s3_dir, "mosaic/", view_geometry, "/", basename(input_file))
+    try(S3_copy_single(output_file_s3, input_file, S3_profile))
+    
+    # skip ?
+    if (file.exists(input_file)) {
+      file.remove(input_file)
+      next
+    }
     
     # create file list
-    file_list = paste0(s3_dir, "tiled/", view_geometry, "/", year, "/SR_",view_geometry_upper,"_month_MCD19A1_FilterQA.",tiles_to_mosaic,".", year, "_", month, ".",band_names[j],".tif")
+    #file_list = paste0(s3_dir, "tiled/", view_geometry, "/", year, "/SR_",view_geometry_upper,"_month_MCD19A1_FilterQA.",tiles_to_mosaic,".", year, "_", month, ".",band_names[j],".tif")
+    file_list = paste0(s3_dir, "tiled/", view_geometry, "/", year, "/SR_",view_geometry_upper,"_month_MAIACTerraAqua_",tiles_to_mosaic,"_", year, "_", month, "_",band_names[j],".tif")
+
+    # download files
+    tmp_dir = paste0(tempdir(), "/")
+    file_list_local = paste0(tmp_dir, basename(file_list))
+    try(S3_copy_single_parallel(file_list, file_list_local, S3_profile))
+    
+    # list files in disk
+    file_list_local = normalizePath(list.files(tmp_dir, full.names=T, pattern=".tif$"))
+    
+    # skip if no files
+    if (length(file_list_local) == 0) next
     
     # create vrt for the file list
-    vrt = vrt_imgs(file_list, gdalbuildvrt)
+    vrt = vrt_imgs(file_list_local, gdalbuildvrt)
     
     # proceed only if mosaic, latlon and crop file doesn't exist
     if (all(!file.exists(c(output1, output2, output3)))) {
@@ -107,18 +131,19 @@ f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster","gdalUtils","rgdal")
                      overwrite = TRUE,
                      output_Raster = FALSE,
                      ot = "Int16",
-                     co = c("COMPRESS=LZW","PREDICTOR=2"))
+                     co = c("COMPRESS=LZW","PREDICTOR=2","TILED=YES"))
     }
-    
+
     # proceed only if latlon and crop file doesn't exist
     if (all(!file.exists(c(output2, output3)))) {
       
       # set source crs
-      source_srs = "+proj=sinu +lon_0=-58 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
-      # if it is from the MCD (new product) - we have to adjust this - we check it by the original resolution equal to 926.6254
-      if (all(res(stack(output1))[1] != c(1000,500))) {
-        source_srs = "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
-      }
+      #source_srs = "+proj=sinu +lon_0=-58 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
+      source_srs = "+proj=sinu +lon_0=-70 +R=6371007.181 +units=m +no_defs"
+      # # if it is from the MCD (new product) - we have to adjust this - we check it by the original resolution equal to 926.6254
+      # if (all(res(stack(output1))[1] != c(1000,500))) {
+      #   source_srs = "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"
+      # }
       
       if (!is_crop_enable) {
         # reproject from sinusoidal to latlon
@@ -131,7 +156,7 @@ f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster","gdalUtils","rgdal")
                  ot="Int16",
                  tr=spat_res, # 0.009107388 is the resolution from the old series
                  wo = "INIT_DEST = NO_DATA",
-                 co = c("COMPRESS=LZW","PREDICTOR=2"),
+                 co = c("COMPRESS=LZW","PREDICTOR=2","TILED=YES"),
                  te = c(-113.9209, -61.15665, -2.073097, 14.38913),
                  r = "near")
       } else {
@@ -144,7 +169,7 @@ f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster","gdalUtils","rgdal")
                  tr=spat_res, # 0.009107388 is the resolution from the old series
                  te = c(extent(crop_ext)[1],extent(crop_ext)[3],extent(crop_ext)[2],extent(crop_ext)[4]),
                  wo = "INIT_DEST = NO_DATA",
-                 co = c("COMPRESS=LZW","PREDICTOR=2"),
+                 co = c("COMPRESS=LZW","PREDICTOR=2","TILED=YES"),
                  r = "near")
       }
       
@@ -172,12 +197,22 @@ f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster","gdalUtils","rgdal")
     # remove vrt
     file.remove(vrt)
     
+    # upload file to s3
+    try(S3_copy_single(input_file, output_file_s3, S3_profile))
+    file.remove(output2)
+    
   }
   
 }
 
 # finish cluster
 stopCluster(cl)
+
+# # upload files to s3
+# input_files = list.files(mosaic_output_dir, full.names=T, pattern=".tif")
+# output_files = paste0(s3_dir, "mosaic/", view_geometry, "/", basename(input_files))
+# try(S3_copy_single_parallel(input_files, output_files, S3_profile))
+# file.remove(input_files)
 
 # message
 print("Processing finished.")

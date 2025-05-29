@@ -1286,10 +1286,13 @@ ConvertBRFNadirGDAL = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, 
   t1 = mytic()
   
   # create output filenames
-  output_file1=c()
+  #output_file1=c()
+  output_file1=list()
   output_file2=c()
   for (i in 1:length(BRF)) {
-    output_file1[i] = paste0(tempfile(),".tif")
+    #output_file1[i] = paste0(tempfile(),".tif")
+    output_file1[[i]] = vector("character", 8)
+    for (j in 1:8) output_file1[[i]][j] = paste0(tempfile(),".tif")
     output_file2[i] = paste0(tempfile(),".tif")
   }
   
@@ -1311,27 +1314,40 @@ ConvertBRFNadirGDAL = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, 
   normalization_wrapper = function(i) {
     
     # normalize
-    gdal_calc_run = paste("gdal_calc.py",
-                          paste0("--calc \" A * (D + (", coeff_Fv, "*E) + (", coeff_Fg,"*F))/(D + (B*E) + (C*F)) \" "),
-                          "-A", BRF[i],
-                          "-B", FV[i],
-                          "-C", FG[i],
-                          "-D", kL[i],
-                          "-E", kV[i],
-                          "-F", kG[i],
-                          "--allBands A",
-                          "--format GTiff",
-                          #"--hideNoData",
-                          "--type UInt16",
-                          "--overwrite",
-                          "--quiet",
-                          "--outfile", output_file1[i])
-    system(gdal_calc_run)
+    j=1
+    for (j in 1:8) {
+      gdal_calc_run = paste("gdal_calc.py",
+                            paste0("--calc \" A * (D + (", coeff_Fv, "*E) + (", coeff_Fg,"*F))/(D + (B*E) + (C*F)) \" "),
+                            "-A", BRF[i],
+                            "-B", FV[i],
+                            "-C", FG[i],
+                            "-D", kL[i],
+                            "-E", kV[i],
+                            "-F", kG[i],
+                            #"--allBands A",
+                            paste0("--A_band=",j),
+                            paste0("--B_band=",1),
+                            paste0("--C_band=",1),
+                            paste0("--D_band=",j),
+                            paste0("--E_band=",j),
+                            paste0("--F_band=",j),
+                            "--format GTiff",
+                            #"--hideNoData",
+                            "--type UInt16",
+                            "--overwrite",
+                            "--quiet",
+                            "--outfile", output_file1[[i]][j])
+      system(gdal_calc_run)
+    }
+    
+    # stack the bands
+    output_file1_vrt = vrt_imgs(output_file1[[i]], "gdalbuildvrt", add_cmd = "-separate")
     
     # filter data in the correct range, 0 to 10000
     gdal_calc_run = paste("gdal_calc.py",
                           paste0("--calc \" logical_and(A>=0, A<=10000)*A \" "),
-                          "-A", output_file1[i],
+                          #"-A", output_file1[i],
+                          "-A", output_file1_vrt,
                           "--allBands A",
                           "--format GTiff",
                           "--overwrite",
@@ -1340,7 +1356,8 @@ ConvertBRFNadirGDAL = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, 
     system(gdal_calc_run)
     
     # remove temp filename
-    file.remove(output_file1[i])
+    file.remove(output_file1_vrt)
+    file.remove(output_file1[[i]])
     
   }
   
@@ -1360,7 +1377,7 @@ ConvertBRFNadirGDAL = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, 
   snowrun(fun = normalization_wrapper,
           values = 1:length(BRF),
           no_cores = no_cores,
-          var_export = c("BRF", "FV", "FG", "kL", "kV", "kG", "coeff_Fv", "coeff_Fg", "output_file1", "output_file2", "isMCD"),
+          var_export = c("BRF", "FV", "FG", "kL", "kV", "kG", "coeff_Fv", "coeff_Fg", "output_file1", "output_file2", "isMCD", "vrt_imgs"),
           pack_export = NULL)
   
   # measure time
@@ -2199,6 +2216,7 @@ resample_f = function(f, brf) {
     # gdal_translate to change data format to Float32
     gdal_translate_run = paste("gdal_translate",
                                "-ot Float32",
+                               "-b 1",
                                "-q",
                                brf[i],
                                f2[i]
@@ -2790,6 +2808,10 @@ refresh_credentials_earthdata = function() {
   print("Earth Data credentials refreshed.")
 }
 
+# function to sub s3 for vsis
+s3_to_vsis = function(fname) {
+  return(gsub("s3://", "/vsis3/", fname))
+}
 
 
 # utilities ---------------------------------------------------------------
@@ -2842,4 +2864,10 @@ vrt_imgs = function(file_list, gdalbuildvrt, add_cmd = NULL) {
   file.remove(txt_fname)
   return(name_final_vrt)
   
+}
+
+# function to sopt ec2 machine
+ec2_stop = function() {
+  instance_id = system('ec2metadata --instance-id', intern=T)
+  system(paste0("aws ec2 stop-instances --instance-ids ", instance_id))
 }

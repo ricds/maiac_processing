@@ -132,7 +132,7 @@ unique_years = as.numeric(unique(loop_mat[,2]))
 
 # list files in the s3
 unique_tiles = unique(loop_mat[,4])
-buckets_to_list = paste0(s3_dir, unique_tiles, "/")
+buckets_to_list = paste0(s3_input_dir, unique_tiles, "/")
 fname_list = snowrun(fun = s3_list_bucket,
                      values = buckets_to_list,
                      no_cores = no_cores,
@@ -143,9 +143,11 @@ fname_list = snowrun(fun = s3_list_bucket,
 # START OF PROCESSING ---------------------------------
 
 # Loop through the loop_mat matrix 
+j=1
 f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCurl"), .export=ls(.GlobalEnv), .errorhandling="remove") %do% {
   
   # single run
+  #for (j in c(10, 15, 50, 51, 55, 60, 72, 85, 96)) {
   if (TRUE) {
     
     # message
@@ -161,6 +163,15 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
       tile = "h32v08"
       year = 2023
       # MAIACABRF.h32v08.20220281800
+      tile = "h33v10"
+      tile = "h32v10"
+      tile = "h31v10"
+      #year = 2007
+      year = 2003
+      month = 8
+      loop_mat = loop_mat[loop_mat[,2]==year,]
+      loop_mat = loop_mat[loop_mat[,1]==month,]
+      j=1
     }
     
     # get input_dir from loop_mat
@@ -200,6 +211,9 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
     fnames_s3 = grep(paste0("/", year,"/"), fnames_s3, value=T)
     fnames_s3 = grep(paste(paste0(year,day), collapse="|"), fnames_s3, value=T)
     
+    # # filter for Terra
+    # fnames_s3 = grep("MAIACT|MAIACRTLS", fnames_s3, value=T)
+    
     # skip if no data
     if (length(fnames_s3) == 0) {
       print("No files to process in S3.")
@@ -210,7 +224,7 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
     output_filenames = paste0(output_dir,composite_fname,"_",tile,"_",year, composite_num,"_",band_names,".tif")
     
     # check if this composite was already processed
-    input_files = paste0(S3_output_path, view_geometry, "/", year, "/", basename(output_filenames))
+    input_files = paste0(s3_dir, "tiled/", view_geometry, "/", year, "/", basename(output_filenames))
     output_files = output_filenames
     snowrun(fun = S3_download_upload,
             values = 1:length(input_files),
@@ -244,13 +258,13 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
       
       # parallel download all files we need
       files_to_download = fnames_s3
-      output_dir = manual_dir_tiles[1]
-      output_fnames = paste0(output_dir, basename(files_to_download))
+      download_dir = manual_dir_tiles[1]
+      output_fnames = paste0(download_dir, basename(files_to_download))
       S3_copy_single_parallel(files_to_download, output_fnames, S3_profile)
       # snowrun(fun = S3_download_single_file,
       #         values = 1:length(files_to_download),
       #         no_cores = no_cores,
-      #         var_export = c("files_to_download", "output_dir"))
+      #         var_export = c("files_to_download", "download_dir"))
       
       timer(myt)
     }
@@ -297,6 +311,23 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
     product_fname = basename(product_fname)
     parameter_fname = basename(parameter_fname)
     
+    # # check if we have reflectance and parameters at the same day for all dates, remove if not
+    # day_list = list(vector("character"), vector("character"))
+    # if (isMCD) {
+    #   aux_str = "A"
+    # } else {
+    #   aux_str = "."
+    # }
+    # for (w in 1:length(day)) {
+    #   val1 = grep(paste0(aux_str, year, day[w]), product_fname, value=T)
+    #   val2 = grep(paste0(aux_str, year, day[w]), parameter_fname, value=T)
+    #   day_list[[1]][w] = ifelse(length(val1) == 0, NA, val1[1])
+    #   day_list[[2]][w] = ifelse(length(val2) == 0, NA, val2[1])
+    # }
+    # df = cbind(day_list[[1]], day_list[[2]])
+    # df = df[rowSums(is.na(df))==0,]
+    # product_fname=df[,1]
+    # parameter_fname=df[,2]
     # check if we have reflectance and parameters at the same day for all dates, remove if not
     day_list = list(vector("character"), vector("character"))
     if (isMCD) {
@@ -304,11 +335,15 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
     } else {
       aux_str = "."
     }
+    w=1
     for (w in 1:length(day)) {
       val1 = grep(paste0(aux_str, year, day[w]), product_fname, value=T)
       val2 = grep(paste0(aux_str, year, day[w]), parameter_fname, value=T)
-      day_list[[1]][w] = ifelse(length(val1) == 0, NA, val1[1])
-      day_list[[2]][w] = ifelse(length(val2) == 0, NA, val2[1])
+      # we have data
+      if (length(val1) > 0 & length(val2) > 0) {
+        day_list[[1]] = c(day_list[[1]], val1)
+        day_list[[2]] = c(day_list[[2]], rep(val2, length(val1)))
+      }
     }
     df = cbind(day_list[[1]], day_list[[2]])
     df = df[rowSums(is.na(df))==0,]
@@ -386,27 +421,39 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
     median_brf_reflectance = CalcMedianBRFGDAL(nadir_brf_reflectance_per_band)
     # sum(file.size(median_brf_reflectance))/(1024*1024)
     rm(list = c("nadir_brf_reflectance_per_band"))
-
+    
     # 9) move final files from temporary dir to their output directory
     file.rename(median_brf_reflectance, output_filenames)
     rm(list = c("median_brf_reflectance"))
     
-    # upload files to S3 and delete local files
-    if (upload_to_s3) {
-      myt = timer("Uploading files to S3")
-      
-      # upload
-      input_files = output_filenames
-      output_files = paste0(S3_output_path, view_geometry, "/", year, "/", basename(output_filenames))
-      snowrun(fun = S3_download_upload,
-              values = 1:length(input_files),
-              no_cores = no_cores,
-              var_export = c("input_files", "output_files", "S3_profile"))
-      
-      # delete local files
-      file.remove(output_filenames)
-      timer(myt)
-    }
+    # # upload files to S3 and delete local files
+    # if (upload_to_s3) {
+    #   myt = timer("Uploading files to S3")
+    #   
+    #   # upload
+    #   input_files = output_filenames
+    #   output_files = paste0(s3_dir, "tiled/", view_geometry, "/", year, "/", basename(output_filenames))
+    #   snowrun(fun = S3_download_upload,
+    #           values = 1:length(input_files),
+    #           no_cores = no_cores,
+    #           var_export = c("input_files", "output_files", "S3_profile"))
+    #   
+    #   # delete local files
+    #   file.remove(output_filenames)
+    #   timer(myt)
+    # }
+    
+    # upload experimental data
+    output_filenames = output_filenames[1]
+    input_files = output_filenames
+    output_files = paste0("s3://ctrees-input-data/modis/MCD19A1_C6.1_experimental_SA/test/", basename(output_filenames))
+    snowrun(fun = S3_download_upload,
+            values = 1:length(input_files),
+            no_cores = no_cores,
+            var_export = c("input_files", "output_files", "S3_profile"))
+    # delete local files
+    file.remove(output_filenames)
+    timer(myt)
     
     # clean temporary directory
     file.remove(list.files(tmp_dir, recursive=T, full.names=T))
