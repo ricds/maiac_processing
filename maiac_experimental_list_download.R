@@ -4,6 +4,11 @@
 library(xml2)
 library(rvest) # install.packages("rvest")
 
+# function to sync S3 files 
+S3_sync = function(input_dir, output_dir) {
+  system(paste0("aws s3 sync ", input_dir, " ", output_dir))
+}
+
 # working dir
 setwd("/home/rstudio/")
 #setwd("E:/")
@@ -13,7 +18,8 @@ s3_output_txt = "s3://ctrees-input-data/modis/MCD19A1_C6.1_experimental_SA_May25
 s3_output_raw = "s3://ctrees-input-data/modis/MCD19A1_C6.1_experimental_SA_May25/raw/"
 
 # local output directory for the txt files
-dir.create("maiac_txt_file_list/", showWarnings = F, recursive=T)
+txt_local_dir = "maiac_txt_file_list/"
+dir.create(txt_local_dir, showWarnings = F, recursive=T)
 
 # url to search
 URL_main = "https://portal.nccs.nasa.gov/datashare/maiac/DataRelease/SA_2000-2023/"
@@ -48,6 +54,9 @@ length(tile_list)
 
 #
 txt_name_error = "maiac_txt_error.txt"
+
+
+# run listing -------------------------------------------------------------
 
 # loop tile
 j=1
@@ -112,9 +121,14 @@ for (j in 1:length(tile_list)) {
   
 }
 
+# sync txt with s3
+S3_sync(txt_local_dir, s3_output_txt)
 
 
 # download ----------------------------------------------------------------
+
+# download txts
+S3_sync(s3_output_txt, txt_local_dir)
 
 # define download directory
 download_dir = "maiac_download/"
@@ -141,7 +155,7 @@ for (j in 1:length(tile_list)) {
     year = year_list[i]
     
     # create file to store the URLs
-    txt_name = paste0("maiac_txt_file_list/file_list_",tile,"_year_",year,"_experimental_maiac.txt")
+    txt_name = paste0(txt_local_dir, "file_list_",tile,"_year_",year,"_experimental_maiac.txt")
     
     # skip if file does not exist
     if (!file.exists(txt_name)) next
@@ -178,7 +192,7 @@ for (j in 1:length(tile_list)) {
       files_missing = txt_name_read[idx_missing]
       
       # create file to store the URLs
-      txt_name = paste0("maiac_txt_file_list/missing_files.txt")
+      txt_name = paste0(txt_local_dir, "missing_files.txt")
       sink(file = txt_name)
       cat(files_missing, sep="\n")
       sink()
