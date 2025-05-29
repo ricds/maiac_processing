@@ -140,6 +140,12 @@ file.remove(list.files(download_dir, full.names=T))
 # define aria
 aria_path = "aria2c"
 
+# select tiles to run
+if (FALSE) {
+  mat=matrix(1:21, nrow=4, byrow=T)
+  tile_list=tile_list[mat[1,]]
+}
+
 # loop tile
 j=1
 for (j in 1:length(tile_list)) {
