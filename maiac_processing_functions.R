@@ -2593,9 +2593,13 @@ get_filenames_to_download = function(functions_dir, year) {
   return(fname)
 }
 
+# # function to sync S3 files 
+# S3_sync = function(input_dir, output_dir) {
+#   system(paste0("aws s3 sync ", input_dir, " ", output_dir))
+# }
 # function to sync S3 files 
-S3_sync = function(input_dir, output_dir) {
-  system(paste0("aws s3 sync ", input_dir, " ", output_dir))
+S3_sync = function(input_dir, output_dir, S3_profile = "ctrees") {
+  system(paste0("aws s3 sync ", input_dir, " ", output_dir, " --profile ", S3_profile))
 }
 
 # function to download files from earthdata

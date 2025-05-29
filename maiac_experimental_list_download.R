@@ -5,8 +5,8 @@ library(xml2)
 library(rvest) # install.packages("rvest")
 
 # function to sync S3 files 
-S3_sync = function(input_dir, output_dir) {
-  system(paste0("aws s3 sync ", input_dir, " ", output_dir))
+S3_sync = function(input_dir, output_dir, S3_profile = "ctrees") {
+  system(paste0("aws s3 sync ", input_dir, " ", output_dir, " --profile ", S3_profile))
 }
 
 # working dir
