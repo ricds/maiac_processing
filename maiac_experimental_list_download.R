@@ -1,13 +1,11 @@
+
+# begin -------------------------------------------------------------------
+
 # list maiac files from south america with c6.1 experimental
 
 # load packages
 library(xml2)
 library(rvest) # install.packages("rvest")
-
-# function to sync S3 files 
-S3_sync = function(input_dir, output_dir, S3_profile = "ctrees") {
-  system(paste0("aws s3 sync ", input_dir, " ", output_dir, " --profile ", S3_profile))
-}
 
 # working dir
 setwd("/home/rstudio/")
@@ -24,28 +22,29 @@ dir.create(txt_local_dir, showWarnings = F, recursive=T)
 # url to search
 URL_main = "https://portal.nccs.nasa.gov/datashare/maiac/DataRelease/SA_2000-2023/"
 year_list = 2000:2023
-tile_list = c("h29v07",
-              "h30v07",
-              "h30v08",
-              "h30v09",
-              "h30v10",
-              "h31v07",
-              "h31v08",
-              "h31v09",
-              "h31v10",
-              "h31v11",
-              "h32v07",
+tile_list = c("h29v07", #ok
+              "h30v07", #ok
+              "h30v08", #deleting files
+              "h30v09", #deleting
+              "h30v10", #ok
+              "h31v07", #ok
+              "h31v08", #ok
+              "h31v09", #ok
+              "h31v10", #ok
+              "h31v11", #downloading
+              "h32v07", 
               "h32v08",
-              "h32v09",
-              "h32v10",
-              "h32v11",
+              "h32v09", #ok
+              "h32v10", #ok
+              "h32v11", #downloading
               "h33v08",
               "h33v09",
               "h33v10",
-              #"h33v11", no data here in the may2025 version
-              "h34v09",
-              "h34v10",
-              "h34v11")
+              #"h33v11", #nodata
+              "h34v09", #ok
+              "h34v10" #ok
+              #"h34v11" #nodata
+)
 length(tile_list)
 
 # filtered tile list
@@ -55,6 +54,206 @@ length(tile_list)
 #
 txt_name_error = "maiac_txt_error.txt"
 
+
+# functions ---------------------------------------------------------------
+
+
+# function to sync S3 files 
+S3_sync = function(input_dir, output_dir, S3_profile = "ctrees") {
+  system(paste0("aws s3 sync ", input_dir, " ", output_dir, " --profile ", S3_profile))
+}
+
+# function to list files in a bucket
+s3_list_bucket = function(s3_input, RETRIEVE_ONLY_KEY = TRUE) {
+  
+  # lib
+  require(paws)
+  
+  # determine bucket and prefix to search that fit in the s3 function
+  tmp = stringr::str_split(s3_input, "/")[[1]]
+  bucket = tmp[3]
+  prefix = paste(tmp[4:length(tmp)], collapse ="/")
+  
+  # create connection
+  s3 <- paws::s3()
+  
+  # # to list files in AWS 
+  # list_files_aws = s3$list_objects(
+  #   Bucket = bucket,
+  #   Prefix = prefix,
+  #   MaxKeys = 99999
+  # )
+  
+  # # create vector with the list
+  # file_list = c()
+  # for (i in 1:length(list_files_aws$Contents)) file_list[i] = list_files_aws$Contents[[i]]$Key
+  
+  # to list files in AWS 
+  file_list = s3_list_objects_paginated(bucket, prefix, RETRIEVE_ONLY_KEY)
+  #file_list = list_files_aws$Key
+  
+  # adjust file names
+  if (!is.null(file_list)) {
+    file_list[[1]] = paste0("s3://", bucket, "/", file_list[[1]])
+  }
+  
+  if (RETRIEVE_ONLY_KEY) file_list = file_list[[1]]
+  
+  # return files
+  return(file_list)
+  
+}
+
+# function to list s3 objects with pagination
+s3_list_objects_paginated <- function(bucket, prefix, RETRIEVE_ONLY_KEY = TRUE, last_modified = TRUE, max_retries = 5) {
+  
+  response <- paws.storage::s3()$list_objects_v2(
+    Bucket = bucket,
+    Prefix = prefix
+  )
+  
+  responses <- list(response)
+  
+  if (response[["IsTruncated"]]) {
+    
+    truncated <- TRUE
+    
+    while (truncated) {
+      
+      retry <- TRUE
+      retries <- 0
+      
+      # If an error is returned by AWS then try again with exponential backoff
+      while (retry && retries < max_retries) {
+        
+        response <- tryCatch(
+          paws.storage::s3()$list_objects_v2(
+            Bucket = bucket,
+            Prefix = prefix,
+            ContinuationToken = response[["NextContinuationToken"]]
+          ) 
+          #,error = \(e) e
+        )
+        
+        if (inherits(response, "error")) {
+          if (retries == max_retries) stop(response)
+          
+          wait_time <- 2 ^ retries / 10
+          Sys.sleep(wait_time)
+          retries <- retries + 1
+        } else {
+          retry <- FALSE
+        }
+      }
+      
+      responses <- append(responses, list(response))
+      
+      truncated <- response[["IsTruncated"]]
+      
+    }
+    
+  } 
+  
+  # 
+  print(paste(Sys.time(), "All files were queried. Now concatenating the results."))
+  
+  i=1
+  file_list=c()
+  for (i in 1:length(responses)) {
+    j=1
+    if (length(responses[[i]]$Contents) > 0) {
+      for (j in 1:length(responses[[i]]$Contents)) file_list = c(file_list, responses[[i]]$Contents[[j]]$Key)
+    }
+  }
+  
+  # also retrieve other info
+  if (!RETRIEVE_ONLY_KEY) {
+    last_modified_info=c()
+    for (i in 1:length(responses)) {
+      j=1
+      if (length(responses[[i]]$Contents) > 0) {
+        for (j in 1:length(responses[[i]]$Contents)) last_modified_info = c(last_modified_info, responses[[i]]$Contents[[j]]$LastModified)
+      }
+    }
+    
+    file_list = list(file_list, last_modified_info)
+  } else {
+    file_list = list(file_list)
+  }
+  
+  print(paste(Sys.time(), "File listing done."))
+  
+  # df_responses <- responses |> 
+  #   purrr::map("Contents") |> 
+  #   purrr::map(
+  #     \(x) purrr::map(
+  #       x, \(y) purrr::keep(y, names(y) %in% c("Key", "LastModified"))
+  #     )
+  #   ) |> 
+  #   dplyr::bind_rows()
+  # 
+  # if (last_modified) {
+  #   dplyr::arrange(df_responses, dplyr::desc(LastModified))
+  # } else {
+  #   df_responses
+  # }
+  
+  return(file_list)
+  
+}
+
+# function to delete S3 files
+S3_remove = function(input_fname, s3_profile = NULL, no_cores = parallel::detectCores()) {
+  
+  wrapper = function(i){
+    system(paste0("aws s3 rm ", input_fname[i], ifelse(!is.null(s3_profile), paste0(" --profile ", s3_profile), "")))  
+  }
+  
+  # to parallel or not to parallel, that is the question
+  if (length(input_fname) < no_cores) {
+    
+    # simple loop
+    for (i in 1:length(input_fname)) {
+      wrapper(i)
+    }
+    
+  } else {
+    
+    # parallel
+    snowrun(fun = wrapper,
+            values = 1:length(input_fname),
+            no_cores = no_cores,
+            var_export = c("input_fname", "s3_profile"),
+            pack_export = NULL)
+    
+  }
+  
+}
+
+# wrapper function around snowfall to run codes in parallel
+snowrun = function(fun, values, no_cores, var_export = NULL, pack_export = NULL, ...) {
+  # libraries need for snowfall parallel
+  library(pacman)
+  p_load(snowfall)
+  snowfall::sfInit(parallel = TRUE, cpus = no_cores) # adjust number of cores here
+  
+  # import variables or packages inside cores
+  if (!is.null(var_export)) {
+    snowfall::sfExport(list = var_export)
+  }
+  if (!is.null(pack_export)) {
+    for (i in 1:length(pack_export)) {
+      snowfall::sfLibrary(pack_export[i], character.only=TRUE)
+    }
+  }
+  
+  # run in parallel
+  system.time({a = snowfall::sfLapply(values, fun)})
+  snowfall::sfStop()
+  
+  # return
+  return(a)
+}
 
 # run listing -------------------------------------------------------------
 
@@ -144,6 +343,7 @@ aria_path = "aria2c"
 if (FALSE) {
   mat=matrix(1:21, nrow=4, byrow=T)
   tile_list=tile_list[mat[1,]]
+  tile_list=tile_list[3:6]
 }
 
 # loop tile
@@ -233,5 +433,64 @@ for (j in 1:length(tile_list)) {
     print(paste(j, i))
     
   }
+  
+}
+
+
+
+# check files and delete non-matching -------------------------------------
+
+# 
+files_to_delete = c()
+
+# loop tiles
+i=3
+for (i in 1:length(tile_list)) {
+  
+  # get tile i
+  tile = tile_list[i]
+  
+  # define s3 path
+  s3_path = paste0(s3_output_raw, tile, "/")
+  
+  # list files
+  file_list = s3_list_bucket(s3_path)
+  
+  # loop years 
+  j=20
+  for (j in 1:length(year_list)) {
+    
+    # get year
+    year = year_list[j]
+    
+    # str to search
+    file_list_j = grep(paste0("/",year,"/"), file_list, value=T)
+    
+    # find those that belong to this year
+    idx_belong = grep(paste0("\\.", year), file_list_j)
+
+    # get those that do not belong
+    file_list_j_donotbelong = file_list_j[-idx_belong]
+    
+    # if there are files add to list
+    if (length(file_list_j_donotbelong) > 0) files_to_delete = c(files_to_delete, file_list_j_donotbelong)
+    
+  }
+  
+  # clean
+  rm(file_list)
+  print(i)
+  
+}
+
+# check
+length(files_to_delete)
+head(files_to_delete)
+tail(files_to_delete)
+
+# remove the listed files
+if (FALSE) {
+
+  S3_remove(files_to_delete, "ctrees")
   
 }
