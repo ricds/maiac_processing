@@ -112,7 +112,7 @@ composite_fname = CreateCompositeName(composite_no, product, is_qa_filter, is_ea
 day_mat = CreateDayMatrix(composite_no)
 
 # create loop matrix containing all the information to iterate
-loop_mat = CreateLoopMat(day_mat, composite_no, input_dir_vec, tile_vec, manual_run)
+loop_mat0 = CreateLoopMat(day_mat, composite_no, input_dir_vec, tile_vec, manual_run)
 
 # create the earthdata file
 #write.table(paste0("machine urs.earthdata.nasa.gov login ",login_earthdata," password ",pwd_earthdata), file = "earthdata.netrc", quote = F, row.names = F, col.names = F)
@@ -141,6 +141,21 @@ fname_list = snowrun(fun = s3_list_bucket,
 
 
 # START OF PROCESSING ---------------------------------
+
+# select part of the areas to run
+if (FALSE) {
+  
+  # create splits
+  n_split = 4
+  mat = matrix(1:dim(loop_mat0)[1], nrow=n_split, byrow=T)
+  
+  # define which part to run
+  machine_no = 1
+  loop_mat = loop_mat0[mat[machine_no,],]
+  
+} else {
+  loop_mat = loop_mat0
+}
 
 # Loop through the loop_mat matrix 
 j=1
@@ -426,34 +441,34 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
     file.rename(median_brf_reflectance, output_filenames)
     rm(list = c("median_brf_reflectance"))
     
-    # # upload files to S3 and delete local files
-    # if (upload_to_s3) {
-    #   myt = timer("Uploading files to S3")
-    #   
-    #   # upload
-    #   input_files = output_filenames
-    #   output_files = paste0(s3_dir, "tiled/", view_geometry, "/", year, "/", basename(output_filenames))
-    #   snowrun(fun = S3_download_upload,
-    #           values = 1:length(input_files),
-    #           no_cores = no_cores,
-    #           var_export = c("input_files", "output_files", "S3_profile"))
-    #   
-    #   # delete local files
-    #   file.remove(output_filenames)
-    #   timer(myt)
-    # }
+    # upload files to S3 and delete local files
+    if (upload_to_s3) {
+      myt = timer("Uploading files to S3")
+
+      # upload
+      input_files = output_filenames
+      output_files = paste0(s3_dir, "tiled/", view_geometry, "/", year, "/", basename(output_filenames))
+      snowrun(fun = S3_download_upload,
+              values = 1:length(input_files),
+              no_cores = no_cores,
+              var_export = c("input_files", "output_files", "S3_profile"))
+
+      # delete local files
+      file.remove(output_filenames)
+      timer(myt)
+    }
     
-    # upload experimental data
-    output_filenames = output_filenames[1]
-    input_files = output_filenames
-    output_files = paste0("s3://ctrees-input-data/modis/MCD19A1_C6.1_experimental_SA/test/", basename(output_filenames))
-    snowrun(fun = S3_download_upload,
-            values = 1:length(input_files),
-            no_cores = no_cores,
-            var_export = c("input_files", "output_files", "S3_profile"))
-    # delete local files
-    file.remove(output_filenames)
-    timer(myt)
+    # # upload experimental data
+    # #output_filenames = output_filenames[1]
+    # input_files = output_filenames
+    # output_files = paste0("s3://ctrees-input-data/modis/MCD19A1_C6.1_experimental_SA_May25/test/", basename(output_filenames))
+    # snowrun(fun = S3_download_upload,
+    #         values = 1:length(input_files),
+    #         no_cores = no_cores,
+    #         var_export = c("input_files", "output_files", "S3_profile"))
+    # # delete local files
+    # file.remove(output_filenames)
+    # timer(myt)
     
     # clean temporary directory
     file.remove(list.files(tmp_dir, recursive=T, full.names=T))
