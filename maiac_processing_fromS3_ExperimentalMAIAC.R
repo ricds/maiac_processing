@@ -121,7 +121,7 @@ loop_mat0 = CreateLoopMat(day_mat, composite_no, input_dir_vec, tile_vec, manual
 # get file list --------------------------------------------------
 
 # determine unique years of data
-unique_years = as.numeric(unique(loop_mat[,2]))
+unique_years = as.numeric(unique(loop_mat0[,2]))
 
 # # loop years
 # fname_list = list()
@@ -131,7 +131,7 @@ unique_years = as.numeric(unique(loop_mat[,2]))
 # }
 
 # list files in the s3
-unique_tiles = unique(loop_mat[,4])
+unique_tiles = unique(loop_mat0[,4])
 buckets_to_list = paste0(s3_input_dir, unique_tiles, "/")
 fname_list = snowrun(fun = s3_list_bucket,
                      values = buckets_to_list,
