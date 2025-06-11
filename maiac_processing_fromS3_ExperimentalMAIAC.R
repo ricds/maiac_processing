@@ -71,6 +71,9 @@ source(paste0(functions_dir, "config.txt"))
 # load functions
 source(paste0(functions_dir, "maiac_processing_functions.R"))
 
+# set working directory
+setwd(functions_dir)
+
 # set gdal directory
 #gdal_setInstallation(gdal_dir)
 
