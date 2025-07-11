@@ -1345,7 +1345,8 @@ ConvertBRFNadirGDAL = function(BRF, FV, FG, kL, kV, kG, tile, year, output_dir, 
     
     # filter data in the correct range, 0 to 10000
     gdal_calc_run = paste("gdal_calc.py",
-                          paste0("--calc \" logical_and(A>=0, A<=10000)*A \" "),
+                          #paste0("--calc \" logical_and(A>=0, A<=10000)*A \" "),
+                          paste0("--calc \" numpy.where(logical_and(A>10, A<=10000), A, 65535) \" "), # a lot of 0/1 spuriou values, but also some bigger, using 10 as threshold
                           #"-A", output_file1[i],
                           "-A", output_file1_vrt,
                           "--allBands A",
