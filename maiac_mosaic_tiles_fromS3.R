@@ -79,7 +79,7 @@ registerDoParallel(cl)
 # process in parallel
 i=1
 f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster","gdalUtils","rgdal"), .errorhandling="remove") %dopar% {
-
+  
   # define year and month
   year = substr(composite_vec[i,], 1,4)
   month = substr(composite_vec[i,], 6,7)
@@ -97,18 +97,16 @@ f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster","gdalUtils","rgdal")
     # define output filename in s3
     input_file = output2
     output_file_s3 = paste0(s3_dir, "mosaic/", view_geometry, "/", basename(input_file))
-    try(S3_copy_single(output_file_s3, input_file, S3_profile))
     
     # skip ?
-    if (file.exists(input_file)) {
-      file.remove(input_file)
+    if (S3_file_exists(output_file_s3)) {
       next
     }
     
     # create file list
     #file_list = paste0(s3_dir, "tiled/", view_geometry, "/", year, "/SR_",view_geometry_upper,"_month_MCD19A1_FilterQA.",tiles_to_mosaic,".", year, "_", month, ".",band_names[j],".tif")
     file_list = paste0(s3_dir, "tiled/", view_geometry, "/", year, "/SR_",view_geometry_upper,"_month_MAIACTerraAqua_",tiles_to_mosaic,"_", year, "_", month, "_",band_names[j],".tif")
-
+    
     # download files
     tmp_dir = paste0(tempdir(), "/")
     file_list_local = paste0(tmp_dir, basename(file_list))
@@ -133,7 +131,7 @@ f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster","gdalUtils","rgdal")
                      ot = "Int16",
                      co = c("COMPRESS=LZW","PREDICTOR=2","TILED=YES"))
     }
-
+    
     # proceed only if latlon and crop file doesn't exist
     if (all(!file.exists(c(output2, output3)))) {
       
@@ -203,6 +201,9 @@ f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster","gdalUtils","rgdal")
     
   }
   
+  #
+  print(paste("i=",i))
+  
 }
 
 # finish cluster
@@ -221,3 +222,56 @@ print("Processing finished.")
 # check file size
 #sum(file.info(list.files(mosaic_output_dir, pattern="latlon", full.names = TRUE))$size)/(1024*1024*1024)
 #sum(file.info(list.files(mosaic_output_dir, pattern="crop", full.names = TRUE))$size)/(1024*1024*1024)
+
+
+
+
+# create vrt --------------------------------------------------------------
+
+
+if (FALSE) {
+  
+  # list mosaic files
+  mosaic_dir_s3 = paste0(s3_dir, "mosaic/", view_geometry, "/")
+  file_list = s3_list_bucket(mosaic_dir_s3)
+  
+  # define output directory
+  vrt_output_dir = paste0(s3_dir, "mosaic/", view_geometry, "_vrt/")
+  
+  # process each band
+  j=1
+  for (j in 1:length(band_names)) {
+    
+    # filter for band
+    file_list_j = grep(band_names[j], file_list, value=T)
+    
+    # create vrt
+    vrt_fname = vrt_imgs(s3_to_vsis(file_list_j), gdalbuildvrt, add_cmd = "-separate -vrtnodata 32767 -srcnodata 32767")
+    
+    # create stats for faster opening
+    system(paste("gdalinfo",vrt_fname,"-approx_stats"))
+    
+    # upload vrt
+    s3_vrt = paste0(vrt_output_dir, view_geometry, "_", band_names[j], "_stats.vrt")
+    S3_copy_single(vrt_fname, s3_vrt, "ctrees")
+    
+  }
+  
+  
+}
+
+
+#
+y=-11.55404249
+x=-53.67970051
+gdallocationinfo_run = paste(
+  "gdallocationinfo",
+  "-geoloc",
+  "-valonly",
+  vrt_fname,
+  x,
+  y
+)
+a = system(gdallocationinfo_run, intern = TRUE)
+a = as.numeric(a)
+plot(a, type="l")
