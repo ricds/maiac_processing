@@ -2875,3 +2875,30 @@ ec2_stop = function() {
   instance_id = system('ec2metadata --instance-id', intern=T)
   system(paste0("aws ec2 stop-instances --instance-ids ", instance_id))
 }
+
+# function to check if one S3 file exists
+S3_file_exists = function(fname) {
+  # determine bucket and prefix to search
+  tmp = stringr::str_split(fname, "/")[[1]]
+  bucket = tmp[3]
+  prefix = paste(tmp[4:length(tmp)], collapse ="/")
+  
+  # list objects
+  s3 <- paws::s3()
+  # to list files in AWS 
+  list_files_aws = s3$list_objects(
+    Bucket = bucket,
+    Prefix = prefix,
+    MaxKeys = 99999
+  )
+  
+  # check
+  if (length(list_files_aws$Contents) == 0) {
+    val = FALSE
+  } else {
+    val = TRUE
+  }
+  
+  # return
+  return(val)
+}
