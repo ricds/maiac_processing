@@ -187,9 +187,17 @@ f=foreach(j = 1:dim(loop_mat)[1], .packages=c("raster","gdalUtils","rgdal","RCur
       #year = 2007
       year = 2003
       month = 8
+      
+      tile="h30v09"
+      year=2023
+      month=4
+      
+      #
       loop_mat = loop_mat[loop_mat[,2]==year,]
       loop_mat = loop_mat[loop_mat[,1]==month,]
-      j=1
+      #loop_mat = loop_mat[loop_mat[,4]==tile,]
+      j=7
+      
     }
     
     # get input_dir from loop_mat
