@@ -110,7 +110,7 @@ f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster","gdalUtils","rgdal")
     # download files
     tmp_dir = paste0(tempdir(), "/")
     file_list_local = paste0(tmp_dir, basename(file_list))
-    try(S3_copy_single_parallel(file_list, file_list_local, S3_profile))
+    try(S3_copy_single(file_list, file_list_local, S3_profile))
     
     # list files in disk
     file_list_local = normalizePath(list.files(tmp_dir, full.names=T, pattern=".tif$"))
@@ -129,6 +129,7 @@ f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster","gdalUtils","rgdal")
                      overwrite = TRUE,
                      output_Raster = FALSE,
                      ot = "Int16",
+                     a_nodata = "32767",
                      co = c("COMPRESS=LZW","PREDICTOR=2","TILED=YES"))
     }
     
@@ -261,17 +262,21 @@ if (FALSE) {
 }
 
 
-#
-y=-11.55404249
-x=-53.67970051
-gdallocationinfo_run = paste(
-  "gdallocationinfo",
-  "-geoloc",
-  "-valonly",
-  vrt_fname,
-  x,
-  y
-)
-a = system(gdallocationinfo_run, intern = TRUE)
-a = as.numeric(a)
-plot(a, type="l")
+if (FALSE) {
+  
+  #
+  y=-11.55404249
+  x=-53.67970051
+  gdallocationinfo_run = paste(
+    "gdallocationinfo",
+    "-geoloc",
+    "-valonly",
+    vrt_fname,
+    x,
+    y
+  )
+  a = system(gdallocationinfo_run, intern = TRUE)
+  a = as.numeric(a)
+  plot(a, type="l")
+  
+}
