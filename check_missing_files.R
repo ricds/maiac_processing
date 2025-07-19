@@ -1,5 +1,5 @@
 # list files
-url="s3://ctrees-input-data/modis/AnisoVeg_MCD19A1/v061_1km_monthly_expMay25/tiled/nadir/2023/"
+url="s3://ctrees-input-data/modis/AnisoVeg_MCD19A1/v061_1km_monthly_expMay25/tiled/forwardscat/2007/"
 file_list = s3_list_bucket(url)
 length(file_list)
 
@@ -30,7 +30,7 @@ manual_tile = c("h29v07", #ok
 
 # "SR_Nadir_month_MAIACTerraAqua_h29v07_2022_01_band1.tif"
 band_list = c(paste0("band",1:8),"no_samples")
-grid_List = expand.grid(manual_tile, "2023", sprintf("%02d", 1:12), band_list)
+grid_List = expand.grid(manual_tile, "2007", sprintf("%02d", 1:12), band_list)
 file_list_expected = paste0(grid_List$Var1,"_",grid_List$Var2,"_",grid_List$Var3,"_",grid_List$Var4)
 length(file_list_expected)
 
@@ -40,4 +40,4 @@ for (i in 1:length(file_list_expected)) {
   if (length(grep(file_list_expected[i], file_list)) != 1)
     print(i)
 }
-file_list_expected[1747]
+file_list_expected[653]
