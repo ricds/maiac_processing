@@ -23,6 +23,10 @@ machine = "EC2"
 # get the folder where the script R functions and config file are placed
 functions_dir = paste0(dirname(rstudioapi::getActiveDocumentContext()$path),"/")
 
+# load config.txt file that should be in the same directory of the scripts
+machine = "EC2"
+source(paste0(functions_dir, "config_mosaic_vi.txt"))
+
 # load functions
 source(paste0(functions_dir, "maiac_processing_functions.R"))
 
