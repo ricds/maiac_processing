@@ -15,7 +15,7 @@ library(foreach)  #install.packages("foreach") # click yes if asked
 library(doParallel)  #install.packages("doParallel")
 library(rstudioapi)  #install.packages("rstudioapi")
 library(compiler)  #install.packages("compiler")
-library(itertools)  #install.packages("itertools")
+#library(itertools)  #install.packages("itertools")
 
 # get the folder where the script R functions and config file are placed
 functions_dir = paste0(dirname(rstudioapi::getActiveDocumentContext()$path),"/")
