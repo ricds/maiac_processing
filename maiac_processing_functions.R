@@ -2616,6 +2616,34 @@ S3_download_upload = function(i) {
   system(paste0("aws s3 cp ", input_files[i], " ", output_files[i], " --profile ", S3_profile))
 }
 
+# function to delete S3 files
+S3_remove = function(input_fname, s3_profile = NULL, no_cores = parallel::detectCores()) {
+  
+  wrapper = function(i){
+    system(paste0("aws s3 rm ", input_fname[i], ifelse(!is.null(s3_profile), paste0(" --profile ", s3_profile), "")))  
+  }
+  
+  # to parallel or not to parallel, that is the question
+  if (length(input_fname) < no_cores) {
+    
+    # simple loop
+    for (i in 1:length(input_fname)) {
+      wrapper(i)
+    }
+    
+  } else {
+    
+    # parallel
+    snowrun(fun = wrapper,
+            values = 1:length(input_fname),
+            no_cores = no_cores,
+            var_export = c("input_fname", "s3_profile"),
+            pack_export = NULL)
+    
+  }
+  
+}
+
 # function to list files in a bucket
 s3_list_bucket = function(s3_input, RETRIEVE_ONLY_KEY = TRUE) {
   
@@ -2658,7 +2686,7 @@ s3_list_bucket = function(s3_input, RETRIEVE_ONLY_KEY = TRUE) {
 }
 
 # function to list s3 objects with pagination
-s3_list_objects_paginated <- function(bucket, prefix, RETRIEVE_ONLY_KEY = TRUE, last_modified = TRUE, max_retries = 5) {
+s3_list_objects_paginated_old <- function(bucket, prefix, RETRIEVE_ONLY_KEY = TRUE, last_modified = TRUE, max_retries = 5) {
   
   response <- paws.storage::s3()$list_objects_v2(
     Bucket = bucket,
@@ -2754,6 +2782,78 @@ s3_list_objects_paginated <- function(bucket, prefix, RETRIEVE_ONLY_KEY = TRUE, 
   return(file_list)
   
 }
+
+# function to list s3 objects with pagination, adding Size of object
+s3_list_objects_paginated <- function(bucket, prefix, RETRIEVE_ONLY_KEY = TRUE, last_modified = TRUE, max_retries = 5) {
+  
+  s3 <- paws.storage::s3()
+  response <- s3$list_objects_v2(
+    Bucket = bucket,
+    Prefix = prefix
+  )
+  
+  responses <- list(response)
+  
+  if (response[["IsTruncated"]]) {
+    truncated <- TRUE
+    while (truncated) {
+      retry <- TRUE
+      retries <- 0
+      while (retry && retries < max_retries) {
+        response <- tryCatch(
+          s3$list_objects_v2(
+            Bucket = bucket,
+            Prefix = prefix,
+            ContinuationToken = response[["NextContinuationToken"]]
+          ),
+          error = function(e) e
+        )
+        if (inherits(response, "error")) {
+          if (retries == max_retries) stop(response)
+          Sys.sleep(2 ^ retries / 10)
+          retries <- retries + 1
+        } else {
+          retry <- FALSE
+        }
+      }
+      responses <- append(responses, list(response))
+      truncated <- response[["IsTruncated"]]
+    }
+  }
+  
+  print(paste(Sys.time(), "All files were queried. Now concatenating the results."))
+  
+  keys <- c()
+  last_modified_info <- c()
+  sizes <- c()
+  
+  for (i in seq_along(responses)) {
+    contents <- responses[[i]]$Contents
+    if (length(contents) > 0) {
+      for (j in seq_along(contents)) {
+        keys <- c(keys, contents[[j]]$Key)
+        if (!RETRIEVE_ONLY_KEY) {
+          last_modified_info <- c(last_modified_info, contents[[j]]$LastModified)  # already POSIXct
+          sizes <- c(sizes, contents[[j]]$Size)
+        }
+      }
+    }
+  }
+  
+  print(paste(Sys.time(), "File listing done."))
+  
+  if (RETRIEVE_ONLY_KEY) {
+    return(list(Keys = keys))
+  } else {
+    return(data.frame(
+      Key = keys,
+      LastModified = last_modified_info,
+      Size = sizes,
+      stringsAsFactors = FALSE
+    ))
+  }
+}
+
 
 # function to download S3 files
 S3_copy_single = function(input_fname, output_fname, s3_profile = NULL) {

@@ -226,12 +226,12 @@ f=foreach(i = 1:dim(composite_vec)[1], .packages=c("raster"), .errorhandling="re
       }
       
       # upload results
-      S3_copy_single(ndvi_tmp, ndvi_fname, "ctrees")
-      S3_copy_single(evi_tmp, evi_fname, "ctrees")
-      S3_copy_single(gcc_tmp, gcc_fname, "ctrees")
+      if (!NDVI_EXISTS) S3_copy_single(ndvi_tmp, ndvi_fname, "ctrees")
+      if (!EVI_EXISTS) S3_copy_single(evi_tmp, evi_fname, "ctrees")
+      if (!GCC_EXISTS) S3_copy_single(gcc_tmp, gcc_fname, "ctrees")
       
       # clean files
-      file.remove(ndvi_tmp, evi_tmp, gcc_tmp, maiac_band1_tmp, maiac_band2_tmp, maiac_band3_tmp, maiac_band4_tmp)
+      try(file.remove(ndvi_tmp, evi_tmp, gcc_tmp, maiac_band1_tmp, maiac_band2_tmp, maiac_band3_tmp, maiac_band4_tmp))
       
     }
     

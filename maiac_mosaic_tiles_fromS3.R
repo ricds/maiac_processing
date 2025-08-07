@@ -226,11 +226,64 @@ print("Processing finished.")
 
 
 
+# check mosaic files ------------------------------------------------------
+
+if (FALSE) {
+  
+  ## noted that some mosaics have very low file size, need to chekc if they are like that because of fault in the mosaic or what is happening
+  
+  # list files and get their file size
+  file_list = s3_list_bucket("s3://ctrees-input-data/modis/AnisoVeg_MCD19A1/v061_1km_monthly_expMay25/mosaic/anisotropy/", RETRIEVE_ONLY_KEY = FALSE)
+  print(length(file_list[[1]]))
+  file_size = file_list$Size/(1024*1024)
+  idx = file_size < 4
+  file_filtered = file_list$Key[idx]
+  print(file_filtered)
+  if (length(file_filtered) > 0) S3_remove(file_filtered)
+  
+  file_list = s3_list_bucket("s3://ctrees-input-data/modis/AnisoVeg_MCD19A1/v061_1km_monthly_expMay25/mosaic/backscat/", RETRIEVE_ONLY_KEY = FALSE)
+  print(length(file_list[[1]]))
+  #(sort(file_list$Size)/(1024*1024))[1:100]
+  file_size = file_list$Size/(1024*1024)
+  idx = file_size < 4
+  file_filtered = file_list$Key[idx]
+  print(file_filtered)
+  if (length(file_filtered) > 0) S3_remove(file_filtered)
+  
+  file_list = s3_list_bucket("s3://ctrees-input-data/modis/AnisoVeg_MCD19A1/v061_1km_monthly_expMay25/mosaic/forwardscat/", RETRIEVE_ONLY_KEY = FALSE)
+  print(length(file_list[[1]]))
+  #(sort(file_list$Size)/(1024*1024))[1:100]
+  file_size = file_list$Size/(1024*1024)
+  idx = file_size < 4
+  file_filtered = file_list$Key[idx]
+  print(file_filtered)
+  if (length(file_filtered) > 0) S3_remove(file_filtered)
+  
+  file_list = s3_list_bucket("s3://ctrees-input-data/modis/AnisoVeg_MCD19A1/v061_1km_monthly_expMay25/mosaic/nadir/", RETRIEVE_ONLY_KEY = FALSE)
+  print(length(file_list[[1]]))
+  #(sort(file_list$Size)/(1024*1024))[1:100]
+  file_size = file_list$Size/(1024*1024)
+  idx = file_size < 4
+  file_filtered = file_list$Key[idx]
+  print(file_filtered)
+  if (length(file_filtered) > 0) S3_remove(file_filtered)
+  
+  
+  ## issue with the newly created files
+  
+}
 
 # create vrt --------------------------------------------------------------
 
 
 if (FALSE) {
+  
+  #
+  #view_geometry = "nadir"
+  view_geometry = "anisotropy"
+  
+  #
+  band_names = c("evi", "ndvi", "gcc", "band1","band2","band3","band4","band5","band6","band7","band8","no_samples")
   
   # list mosaic files
   mosaic_dir_s3 = paste0(s3_dir, "mosaic/", view_geometry, "/")
@@ -250,8 +303,8 @@ if (FALSE) {
     vrt_fname = vrt_imgs(s3_to_vsis(file_list_j), gdalbuildvrt, add_cmd = "-separate -vrtnodata 32767 -srcnodata 32767")
     
     # create stats for faster opening
-    system(paste("gdalinfo",vrt_fname,"-approx_stats"))
-    
+    system.time({system(paste("gdalinfo", vrt_fname, "-approx_stats"), ignore.stdout = TRUE, ignore.stderr = TRUE)})
+
     # upload vrt
     s3_vrt = paste0(vrt_output_dir, view_geometry, "_", band_names[j], "_stats.vrt")
     S3_copy_single(vrt_fname, s3_vrt, "ctrees")
