@@ -27,8 +27,8 @@ source(paste0(functions_dir, "config_mosaic_vi.txt"))
 # load functions
 source(paste0(functions_dir, "maiac_processing_functions.R"))
 
-# read composite vector from the functions folder
-composite_vec = data.frame(createCompDates(composite_no, end_year = end_year))
+
+# functions ----------------------------------------------------------------
 
 # function to calc evi
 f_evi = function(NIR, RED, BLUE) {
@@ -55,10 +55,6 @@ f_gcc = function(RED, GREEN, BLUE) {
 }
 ff_gcc = cmpfun(f_gcc)
 
-# input directory
-s3_input_dir = paste0(s3_dir, "mosaic/", view_geometry, "/")
-s3_input_dir_list = s3_list_bucket(s3_input_dir)
-
 # function to apply the 10000 scaling
 scale_data = function(input_fname, output_fname) {
   gdal_calc_run = paste("gdal_calc.py",
@@ -74,7 +70,15 @@ scale_data = function(input_fname, output_fname) {
   system(gdal_calc_run)
 }
 
+
 # run ---------------------------------------------------------------------
+
+# read composite vector from the functions folder
+composite_vec = data.frame(createCompDates(composite_no, end_year = end_year))
+
+# input directory
+s3_input_dir = paste0(s3_dir, "mosaic/", view_geometry, "/")
+s3_input_dir_list = s3_list_bucket(s3_input_dir)
 
 #
 no_cores = 8
