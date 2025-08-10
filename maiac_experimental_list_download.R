@@ -21,7 +21,7 @@ dir.create(txt_local_dir, showWarnings = F, recursive=T)
 
 # url to search
 URL_main = "https://portal.nccs.nasa.gov/datashare/maiac/DataRelease/SA_2000-2023/"
-year_list = 2000:2023
+year_list = 2000:2024
 tile_list = c("h29v07", #ok
               "h30v07", #ok
               "h30v08", #deleting files
@@ -202,6 +202,7 @@ s3_list_objects_paginated <- function(bucket, prefix, RETRIEVE_ONLY_KEY = TRUE, 
   
 }
 
+
 # function to delete S3 files
 S3_remove = function(input_fname, s3_profile = NULL, no_cores = parallel::detectCores()) {
   
@@ -370,7 +371,7 @@ for (j in 1:length(tile_list)) {
     system.time({
       aria2 = paste(aria_path
                     ,"-c"
-                    ,"-j 10" # 5 seems to be the maximum downloads at the same time in earth data
+                    ,"-j 5" # 5 seems to be the maximum downloads at the same time in earth data
                     ,"--retry-wait 1"
                     ,"-q" # quiet
                     ,"-i", txt_name
