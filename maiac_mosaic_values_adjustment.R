@@ -67,7 +67,6 @@ registerDoParallel(cl)
 
 # run in parallel
 i=300
-#for (i in 1:length(band_names)) {
 #f=foreach(i = test_run, .packages=c("raster","gdalUtils","rgdal"), .errorhandling="remove") %dopar% {
 f=foreach(i = 1:length(file_list), .packages=c("raster","gdalUtils","rgdal"), .errorhandling="remove") %dopar% {
   
