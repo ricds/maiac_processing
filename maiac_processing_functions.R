@@ -2645,7 +2645,7 @@ S3_remove = function(input_fname, s3_profile = NULL, no_cores = parallel::detect
 }
 
 # function to list files in a bucket
-s3_list_bucket = function(s3_input, RETRIEVE_ONLY_KEY = TRUE) {
+s3_list_bucket_older100925 = function(s3_input, RETRIEVE_ONLY_KEY = TRUE) {
   
   # lib
   require(paws)
@@ -2784,7 +2784,7 @@ s3_list_objects_paginated_old <- function(bucket, prefix, RETRIEVE_ONLY_KEY = TR
 }
 
 # function to list s3 objects with pagination, adding Size of object
-s3_list_objects_paginated <- function(bucket, prefix, RETRIEVE_ONLY_KEY = TRUE, last_modified = TRUE, max_retries = 5) {
+s3_list_objects_paginated_older100925 <- function(bucket, prefix, RETRIEVE_ONLY_KEY = TRUE, last_modified = TRUE, max_retries = 5) {
   
   s3 <- paws.storage::s3()
   response <- s3$list_objects_v2(
@@ -2853,6 +2853,160 @@ s3_list_objects_paginated <- function(bucket, prefix, RETRIEVE_ONLY_KEY = TRUE, 
     ))
   }
 }
+
+
+# function to list files in a bucket
+s3_list_bucket = function(s3_input, RETRIEVE_ONLY_KEY = TRUE, recursive=T, quiet=F) {
+  
+  # lib
+  require(paws)
+  
+  # determine bucket and prefix to search that fit in the s3 function
+  tmp = stringr::str_split(s3_input, "/")[[1]]
+  bucket = tmp[3]
+  prefix = paste(tmp[4:length(tmp)], collapse ="/")
+  
+  # create connection
+  s3 <- paws::s3()
+  
+  # # to list files in AWS 
+  # list_files_aws = s3$list_objects(
+  #   Bucket = bucket,
+  #   Prefix = prefix,
+  #   MaxKeys = 99999
+  # )
+  
+  # # create vector with the list
+  # file_list = c()
+  # for (i in 1:length(list_files_aws$Contents)) file_list[i] = list_files_aws$Contents[[i]]$Key
+  
+  # to list files in AWS 
+  file_list = s3_list_objects_paginated(bucket, prefix, RETRIEVE_ONLY_KEY, quiet = quiet)
+  #file_list = list_files_aws$Key
+  
+  # adjust file names
+  if (!is.null(file_list)) {
+    file_list[[1]] = paste0("s3://", bucket, "/", file_list[[1]])
+  }
+  
+  if (RETRIEVE_ONLY_KEY) file_list = file_list[[1]]
+  
+  # if not recursive, gets only the results of main folder
+  if (!recursive) {
+    # Function to count slashes after base
+    depth_from_base <- function(path) {
+      subpath <- sub(s3_input, "", path, fixed = TRUE)
+      if (subpath == "") return(0)
+      return(length(strsplit(subpath, "/")[[1]]))
+    }
+    
+    # Filter paths that are directly in the main folder (i.e., no additional slash)
+    file_list <- file_list[sapply(file_list, depth_from_base) == 1]
+  }
+  
+  # return files
+  return(file_list)
+  
+}
+
+# function to list s3 objects with pagination
+s3_list_objects_paginated <- function(bucket, prefix, RETRIEVE_ONLY_KEY = TRUE, last_modified = TRUE, max_retries = 5, quiet=F) {
+  
+  response <- paws.storage::s3()$list_objects_v2(
+    Bucket = bucket,
+    Prefix = prefix
+  )
+  
+  responses <- list(response)
+  
+  if (response[["IsTruncated"]]) {
+    
+    truncated <- TRUE
+    
+    while (truncated) {
+      
+      retry <- TRUE
+      retries <- 0
+      
+      # If an error is returned by AWS then try again with exponential backoff
+      while (retry && retries < max_retries) {
+        
+        response <- tryCatch(
+          paws.storage::s3()$list_objects_v2(
+            Bucket = bucket,
+            Prefix = prefix,
+            ContinuationToken = response[["NextContinuationToken"]]
+          ) 
+          #,error = \(e) e
+        )
+        
+        if (inherits(response, "error")) {
+          if (retries == max_retries) stop(response)
+          
+          wait_time <- 2 ^ retries / 10
+          Sys.sleep(wait_time)
+          retries <- retries + 1
+        } else {
+          retry <- FALSE
+        }
+      }
+      
+      responses <- append(responses, list(response))
+      
+      truncated <- response[["IsTruncated"]]
+      
+    }
+    
+  } 
+  
+  # 
+  if (!quiet) print(paste(Sys.time(), "All files were queried. Now concatenating the results."))
+  
+  i=1
+  file_list=c()
+  for (i in 1:length(responses)) {
+    j=1
+    if (length(responses[[i]]$Contents) > 0) {
+      for (j in 1:length(responses[[i]]$Contents)) file_list = c(file_list, responses[[i]]$Contents[[j]]$Key)
+    }
+  }
+  
+  # also retrieve other info
+  if (!RETRIEVE_ONLY_KEY) {
+    last_modified_info=c()
+    for (i in 1:length(responses)) {
+      j=1
+      if (length(responses[[i]]$Contents) > 0) {
+        for (j in 1:length(responses[[i]]$Contents)) last_modified_info = c(last_modified_info, responses[[i]]$Contents[[j]]$LastModified)
+      }
+    }
+    
+    file_list = list(file_list, last_modified_info)
+  } else {
+    file_list = list(file_list)
+  }
+  
+  if (!quiet) print(paste(Sys.time(), "File listing done."))
+  
+  # df_responses <- responses |> 
+  #   purrr::map("Contents") |> 
+  #   purrr::map(
+  #     \(x) purrr::map(
+  #       x, \(y) purrr::keep(y, names(y) %in% c("Key", "LastModified"))
+  #     )
+  #   ) |> 
+  #   dplyr::bind_rows()
+  # 
+  # if (last_modified) {
+  #   dplyr::arrange(df_responses, dplyr::desc(LastModified))
+  # } else {
+  #   df_responses
+  # }
+  
+  return(file_list)
+  
+}
+
 
 
 # function to download S3 files
