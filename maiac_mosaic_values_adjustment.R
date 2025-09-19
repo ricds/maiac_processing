@@ -42,15 +42,19 @@ input_forward = "s3://ctrees-input-data/modis/AnisoVeg_MCD19A1/v061_1km_monthly_
 input_nadir = "s3://ctrees-input-data/modis/AnisoVeg_MCD19A1/v061_1km_monthly_expMay25/mosaic/nadir/"
 input_anisotropy = "s3://ctrees-input-data/modis/AnisoVeg_MCD19A1/v061_1km_monthly_expMay25/mosaic/anisotropy/"
 
-# list files
+# list files - only nadir and anisotropy
 list_nadir = s3_list_bucket(input_nadir)
 list_anisotropy = s3_list_bucket(input_anisotropy)
+file_list = c(list_nadir, list_anisotropy)
+
+# # list files - all layers
+#list_nadir = s3_list_bucket(input_nadir)
+#list_anisotropy = s3_list_bucket(input_anisotropy)
 #list_back = s3_list_bucket(input_back)
 #list_forward = s3_list_bucket(input_forward)
-
-# create list of items to run
 #file_list = c(list_back, list_forward, list_nadir, list_anisotropy)
-file_list = c(list_nadir, list_anisotropy)
+
+# select files
 file_list_output = gsub("mosaic", "mosaic_final", file_list)
 length(file_list)
 
